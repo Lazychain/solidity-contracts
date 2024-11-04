@@ -1,6 +1,12 @@
 [profile.default]
-src = "src"
-out = "out"
-libs = ["lib"]
-
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+solc_version = '0.8.24'
+src = 'contracts'
+out = 'out'
+libs = ['lib']
+optimizer_runs = 200
+remappings = [
+    'forge-std/=lib/forge-std/src/',
+    '@Lazychain/solidity-contracts/=./',
+    '@hyperlane-xyz/=node_modules/@hyperlane-xyz/',
+    '@openzeppelin/=node_modules/@openzeppelin/',
+]
