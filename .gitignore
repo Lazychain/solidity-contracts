@@ -18,3 +18,8 @@ node_modules
 
 out
 types
+
+# installation files
+.pnp.cjs
+.pnp.loader.mjs
+.yarn/
