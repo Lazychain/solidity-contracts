@@ -153,8 +153,7 @@ abstract contract TokenMetadata is ITokenMetadata {
         JsonStore.set(_key, _metadata);
     }
 
-    function _getTokenMetadataKey(uint256 _tokenId) internal virtual view returns (bytes32) {
+    function _getTokenMetadataKey(uint256 _tokenId) internal view virtual returns (bytes32) {
         return bytes32(_tokenId);
     }
-
 }
