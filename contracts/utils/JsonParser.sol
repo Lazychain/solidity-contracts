@@ -10,10 +10,11 @@ library JsonParser {
         PRIMITIVE
     }
 
-    uint8 public constant RETURN_SUCCESS = 0;
-    uint8 public constant RETURN_ERROR_INVALID_JSON = 1;
-    uint8 public constant RETURN_ERROR_PART = 2;
-    uint8 public constant RETURN_ERROR_NO_MEM = 3;
+    // NOTE: Could be limited to uint8
+    uint256 public constant RETURN_SUCCESS = 0;
+    uint256 public constant RETURN_ERROR_INVALID_JSON = 1;
+    uint256 public constant RETURN_ERROR_PART = 2;
+    uint256 public constant RETURN_ERROR_NO_MEM = 3;
 
     struct Token {
         JsonType jsonType;
@@ -65,7 +66,11 @@ library JsonParser {
         return token;
     }
 
-    function parseString(Parser memory parser, Token[] memory tokens, bytes memory s) public pure returns (uint256) {
+    function parseString(
+        Parser memory parser,
+        Token[] memory tokens,
+        bytes memory s
+    ) public pure returns (uint256, Parser memory, Token memory) {
         uint256 start = parser.pos;
         bool success;
         Token memory token;
@@ -79,10 +84,10 @@ library JsonParser {
                 (success, , token) = allocateToken(parser, tokens);
                 if (!success) {
                     parser.pos = start;
-                    return RETURN_ERROR_NO_MEM;
+                    return (RETURN_ERROR_NO_MEM, parser, token);
                 }
-                fillToken(token, JsonType.STRING, start + 1, parser.pos);
-                return RETURN_SUCCESS;
+                token = fillToken(token, JsonType.STRING, start + 1, parser.pos);
+                return (RETURN_SUCCESS, parser, token);
             }
 
             if (uint8(c) == 92 && parser.pos + 1 < s.length) {
@@ -102,15 +107,19 @@ library JsonParser {
                 } else {
                     // all other values are INVALID
                     parser.pos = start;
-                    return (RETURN_ERROR_INVALID_JSON);
+                    return (RETURN_ERROR_INVALID_JSON, parser, token);
                 }
             }
         }
         parser.pos = start;
-        return RETURN_ERROR_PART;
+        return (RETURN_ERROR_PART, parser, token);
     }
 
-    function parsePrimitive(Parser memory parser, Token[] memory tokens, bytes memory s) public pure returns (uint256) {
+    function parsePrimitive(
+        Parser memory parser,
+        Token[] memory tokens,
+        bytes memory s
+    ) public pure returns (uint256, Parser memory, Token memory) {
         bool found = false;
         uint256 start = parser.pos;
         bytes1 c;
@@ -124,23 +133,23 @@ library JsonParser {
             }
             if (uint8(c) < 32 || uint8(c) > 127) {
                 parser.pos = start;
-                return RETURN_ERROR_INVALID_JSON;
+                return (RETURN_ERROR_INVALID_JSON, parser, token);
             }
         }
         if (!found) {
             parser.pos = start;
-            return RETURN_ERROR_PART;
+            return (RETURN_ERROR_PART, parser, token);
         }
 
         // found the end
         (success, , token) = allocateToken(parser, tokens);
         if (!success) {
             parser.pos = start;
-            return RETURN_ERROR_NO_MEM;
+            return (RETURN_ERROR_NO_MEM, parser, token);
         }
-        fillToken(token, JsonType.PRIMITIVE, start, parser.pos);
+        token = fillToken(token, JsonType.PRIMITIVE, start, parser.pos);
         parser.pos--;
-        return RETURN_SUCCESS;
+        return (RETURN_SUCCESS, parser, token);
     }
 
     // NOTE: Need to test the GAS consumption of this function....
@@ -218,7 +227,7 @@ library JsonParser {
         bytes memory s,
         uint256 count
     ) private pure returns (bool) {
-        uint256 r = parseString(parser, tokens, s);
+        (uint256 r, , ) = parseString(parser, tokens, s);
         if (r != RETURN_SUCCESS) return false;
         count++;
         if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
@@ -249,7 +258,7 @@ library JsonParser {
     // Helper functions
 
     function handleString(Parser memory parser, Token[] memory tokens, bytes memory s) private pure returns (uint256) {
-        uint256 r = parseString(parser, tokens, s);
+        (uint256 r, , ) = parseString(parser, tokens, s);
         return r;
     }
 
@@ -330,8 +339,8 @@ library JsonParser {
         Parser memory parser,
         Token[] memory tokens,
         bytes memory s
-    ) private pure returns (uint256) {
-        return parsePrimitive(parser, tokens, s);
+    ) private pure returns (uint256 result) {
+        (result, , ) = parsePrimitive(parser, tokens, s);
     }
 
     function getBytes(string memory json, uint256 start, uint256 end) public pure returns (string memory) {
