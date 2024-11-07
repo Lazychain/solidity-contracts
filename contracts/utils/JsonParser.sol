@@ -10,10 +10,10 @@ library JsmnSolLib {
         PRIMITIVE
     }
 
-    uint256 constant RETURN_SUCCESS = 0;
-    uint256 constant RETURN_ERROR_INVALID_JSON = 1;
-    uint256 constant RETURN_ERROR_PART = 2;
-    uint256 constant RETURN_ERROR_NO_MEM = 3;
+    uint256 public constant RETURN_SUCCESS = 0;
+    uint256 public constant RETURN_ERROR_INVALID_JSON = 1;
+    uint256 public constant RETURN_ERROR_PART = 2;
+    uint256 public constant RETURN_ERROR_NO_MEM = 3;
 
     struct Token {
         JsmnType jsmnType;
@@ -30,13 +30,13 @@ library JsmnSolLib {
         int256 toksuper;
     }
 
-    function init(uint256 length) internal pure returns (Parser memory, Token[] memory) {
+    function init(uint256 length) public pure returns (Parser memory, Token[] memory) {
         Parser memory p = Parser(0, 0, -1);
         Token[] memory t = new Token[](length);
         return (p, t);
     }
 
-    function allocateToken(Parser memory parser, Token[] memory tokens) internal pure returns (bool, Token memory) {
+    function allocateToken(Parser memory parser, Token[] memory tokens) public pure returns (bool, Token memory) {
         if (parser.toknext >= tokens.length) {
             // no more space in tokens
             return (false, tokens[tokens.length - 1]);
@@ -47,7 +47,7 @@ library JsmnSolLib {
         return (true, token);
     }
 
-    function fillToken(Token memory token, JsmnType jsmnType, uint256 start, uint256 end) internal pure {
+    function fillToken(Token memory token, JsmnType jsmnType, uint256 start, uint256 end) public pure {
         token.jsmnType = jsmnType;
         token.start = start;
         token.startSet = true;
@@ -56,7 +56,7 @@ library JsmnSolLib {
         token.size = 0;
     }
 
-    function parseString(Parser memory parser, Token[] memory tokens, bytes memory s) internal pure returns (uint256) {
+    function parseString(Parser memory parser, Token[] memory tokens, bytes memory s) public pure returns (uint256) {
         uint256 start = parser.pos;
         bool success;
         Token memory token;
@@ -101,11 +101,7 @@ library JsmnSolLib {
         return RETURN_ERROR_PART;
     }
 
-    function parsePrimitive(
-        Parser memory parser,
-        Token[] memory tokens,
-        bytes memory s
-    ) internal pure returns (uint256) {
+    function parsePrimitive(Parser memory parser, Token[] memory tokens, bytes memory s) public pure returns (uint256) {
         bool found = false;
         uint256 start = parser.pos;
         bytes1 c;
@@ -138,151 +134,198 @@ library JsmnSolLib {
         return RETURN_SUCCESS;
     }
 
+    // NOTE: Need to test the GAS consumption of this function....
     function parse(
         string memory json,
         uint256 numberElements
-    ) internal pure returns (uint256, Token[] memory tokens, uint256) {
+    ) public pure returns (uint256, Token[] memory tokens, uint256) {
         bytes memory s = bytes(json);
-        bool success;
         Parser memory parser;
         (parser, tokens) = init(numberElements);
 
-        // Token memory token;
-        uint256 r;
         uint256 count = parser.toknext;
-        uint256 i;
-        Token memory token;
 
         for (; parser.pos < s.length; parser.pos++) {
             bytes1 c = s[parser.pos];
 
-            // 0x7b, 0x5b opening curly parentheses or brackets
-            if (c == 0x7b || c == 0x5b) {
-                count++;
-                (success, token) = allocateToken(parser, tokens);
-                if (!success) {
-                    return (RETURN_ERROR_NO_MEM, tokens, 0);
-                }
-                if (parser.toksuper != -1) {
-                    tokens[uint256(parser.toksuper)].size++;
-                }
-                token.jsmnType = (c == 0x7b ? JsmnType.OBJECT : JsmnType.ARRAY);
-                token.start = parser.pos;
-                token.startSet = true;
-                parser.toksuper = int256(parser.toknext - 1);
+            if (isOpeningBracket(c)) {
+                if (!processOpeningBracket(parser, tokens, count)) return (RETURN_ERROR_NO_MEM, tokens, 0);
                 continue;
             }
 
-            // closing curly parentheses or brackets
-            if (c == 0x7d || c == 0x5d) {
-                JsmnType tokenType = (c == 0x7d ? JsmnType.OBJECT : JsmnType.ARRAY);
-                bool isUpdated = false;
-                for (i = parser.toknext - 1; i >= 0; i--) {
-                    token = tokens[i];
-                    if (token.startSet && !token.endSet) {
-                        if (token.jsmnType != tokenType) {
-                            // found a token that hasn't been closed but from a different type
-                            return (RETURN_ERROR_INVALID_JSON, tokens, 0);
-                        }
-                        parser.toksuper = -1;
-                        tokens[i].end = parser.pos + 1;
-                        tokens[i].endSet = true;
-                        isUpdated = true;
-                        break;
-                    }
-                }
-                if (!isUpdated) {
-                    return (RETURN_ERROR_INVALID_JSON, tokens, 0);
-                }
-                for (; i > 0; i--) {
-                    token = tokens[i];
-                    if (token.startSet && !token.endSet) {
-                        parser.toksuper = int256(i);
-                        break;
-                    }
-                }
-
-                if (i == 0) {
-                    token = tokens[i];
-                    if (token.startSet && !token.endSet) {
-                        parser.toksuper = int256(i);
-                    }
-                }
+            if (isClosingBracket(c)) {
+                if (!processClosingBracket(parser, tokens, c)) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
                 continue;
             }
 
-            // 0x42
             if (c == '"') {
-                r = parseString(parser, tokens, s);
-
-                if (r != RETURN_SUCCESS) {
-                    return (r, tokens, 0);
-                }
-                //JsmnError.INVALID;
-                count++;
-                if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
+                if (!processString(parser, tokens, s, count)) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
                 continue;
             }
 
-            // ' ', \r, \t, \n
-            if (c == " " || c == 0x11 || c == 0x12 || c == 0x14) {
-                continue;
-            }
+            if (isWhitespace(c)) continue;
 
-            // 0x3a
             if (c == ":") {
-                parser.toksuper = int256(parser.toknext - 1);
+                processColon(parser);
                 continue;
             }
 
             if (c == ",") {
-                if (
-                    parser.toksuper != -1 &&
-                    tokens[uint256(parser.toksuper)].jsmnType != JsmnType.ARRAY &&
-                    tokens[uint256(parser.toksuper)].jsmnType != JsmnType.OBJECT
-                ) {
-                    for (i = parser.toknext - 1; i >= 0; i--) {
-                        if (tokens[i].jsmnType == JsmnType.ARRAY || tokens[i].jsmnType == JsmnType.OBJECT) {
-                            if (tokens[i].startSet && !tokens[i].endSet) {
-                                parser.toksuper = int256(i);
-                                break;
-                            }
-                        }
-                    }
-                }
+                processComma(parser, tokens);
                 continue;
             }
 
-            // Primitive
-            if ((c >= "0" && c <= "9") || c == "-" || c == "f" || c == "t" || c == "n") {
-                if (parser.toksuper != -1) {
-                    token = tokens[uint256(parser.toksuper)];
-                    if (token.jsmnType == JsmnType.OBJECT || (token.jsmnType == JsmnType.STRING && token.size != 0)) {
-                        return (RETURN_ERROR_INVALID_JSON, tokens, 0);
-                    }
-                }
-
-                r = parsePrimitive(parser, tokens, s);
-                if (r != RETURN_SUCCESS) {
-                    return (r, tokens, 0);
-                }
-                count++;
-                if (parser.toksuper != -1) {
-                    tokens[uint256(parser.toksuper)].size++;
-                }
+            if (isPrimitiveChar(c)) {
+                if (!processPrimitive(parser, tokens, s, count)) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
                 continue;
             }
 
-            // printable char
-            if (c >= 0x20 && c <= 0x7e) {
-                return (RETURN_ERROR_INVALID_JSON, tokens, 0);
-            }
+            if (isPrintableChar(c)) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
         }
 
         return (RETURN_SUCCESS, tokens, parser.toknext);
     }
 
-    function getBytes(string memory json, uint256 start, uint256 end) internal pure returns (string memory) {
+    // Helper Functions
+
+    function processOpeningBracket(
+        Parser memory parser,
+        Token[] memory tokens,
+        uint256 count
+    ) private pure returns (bool) {
+        (bool success, uint256 newCount) = handleOpeningBracket(parser, tokens, count);
+        if (success) count = newCount;
+        return success;
+    }
+
+    function processClosingBracket(Parser memory parser, Token[] memory tokens, bytes1 c) private pure returns (bool) {
+        (bool success, ) = handleClosingBracket(parser, tokens, c);
+        return success;
+    }
+
+    function processString(
+        Parser memory parser,
+        Token[] memory tokens,
+        bytes memory s,
+        uint256 count
+    ) private pure returns (bool) {
+        uint256 r = parseString(parser, tokens, s);
+        if (r != RETURN_SUCCESS) return false;
+        count++;
+        if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
+        return true;
+    }
+
+    function processColon(Parser memory parser) private pure {
+        parser.toksuper = int256(parser.toknext - 1);
+    }
+
+    function processComma(Parser memory parser, Token[] memory tokens) private pure {
+        handleComma(parser, tokens);
+    }
+
+    function processPrimitive(
+        Parser memory parser,
+        Token[] memory tokens,
+        bytes memory s,
+        uint256 count
+    ) private pure returns (bool) {
+        uint256 r = handlePrimitive(parser, tokens, s);
+        if (r != RETURN_SUCCESS) return false;
+        count++;
+        if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
+        return true;
+    }
+
+    // Helper functions
+
+    function handleString(Parser memory parser, Token[] memory tokens, bytes memory s) private pure returns (uint256) {
+        uint256 r = parseString(parser, tokens, s);
+        return r;
+    }
+
+    function handleColon(Parser memory parser) private pure {
+        parser.toksuper = int256(parser.toknext - 1);
+    }
+
+    function isOpeningBracket(bytes1 c) private pure returns (bool) {
+        return (c == 0x7b || c == 0x5b);
+    }
+
+    function isClosingBracket(bytes1 c) private pure returns (bool) {
+        return (c == 0x7d || c == 0x5d);
+    }
+
+    function isWhitespace(bytes1 c) private pure returns (bool) {
+        return (c == " " || c == 0x11 || c == 0x12 || c == 0x14);
+    }
+
+    function isPrimitiveChar(bytes1 c) private pure returns (bool) {
+        return ((c >= "0" && c <= "9") || c == "-" || c == "f" || c == "t" || c == "n");
+    }
+
+    function isPrintableChar(bytes1 c) private pure returns (bool) {
+        return (c >= 0x20 && c <= 0x7e);
+    }
+
+    function handleOpeningBracket(
+        Parser memory parser,
+        Token[] memory tokens,
+        uint256 count
+    ) private pure returns (bool success, uint256 newCount) {
+        Token memory token;
+        (success, token) = allocateToken(parser, tokens);
+        if (!success) return (false, count);
+
+        if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
+        token.jsmnType = (parser.pos == 0x7b ? JsmnType.OBJECT : JsmnType.ARRAY);
+        token.start = parser.pos;
+        token.startSet = true;
+        parser.toksuper = int256(parser.toknext - 1);
+        return (true, count + 1);
+    }
+
+    function handleClosingBracket(
+        Parser memory parser,
+        Token[] memory tokens,
+        bytes1 c
+    ) private pure returns (bool success, uint256 newCount) {
+        JsmnType tokenType = (c == 0x7d ? JsmnType.OBJECT : JsmnType.ARRAY);
+        bool isUpdated = false;
+        for (uint256 i = parser.toknext - 1; i >= 0; i--) {
+            Token memory token = tokens[i];
+            if (token.startSet && !token.endSet) {
+                if (token.jsmnType != tokenType) return (false, 0);
+                parser.toksuper = -1;
+                tokens[i].end = parser.pos + 1;
+                tokens[i].endSet = true;
+                isUpdated = true;
+                break;
+            }
+        }
+        return (isUpdated, 0);
+    }
+
+    function handleComma(Parser memory parser, Token[] memory tokens) private pure {
+        for (uint256 i = parser.toknext - 1; i >= 0; i--) {
+            if (tokens[i].jsmnType == JsmnType.ARRAY || tokens[i].jsmnType == JsmnType.OBJECT) {
+                if (tokens[i].startSet && !tokens[i].endSet) {
+                    parser.toksuper = int256(i);
+                    break;
+                }
+            }
+        }
+    }
+
+    function handlePrimitive(
+        Parser memory parser,
+        Token[] memory tokens,
+        bytes memory s
+    ) private pure returns (uint256) {
+        return parsePrimitive(parser, tokens, s);
+    }
+
+    function getBytes(string memory json, uint256 start, uint256 end) public pure returns (string memory) {
         bytes memory s = bytes(json);
         bytes memory result = new bytes(end - start);
         for (uint256 i = start; i < end; i++) {
@@ -292,12 +335,12 @@ library JsmnSolLib {
     }
 
     // parseInt
-    function parseInt(string memory _a) internal pure returns (int256) {
+    function parseInt(string memory _a) public pure returns (int256) {
         return parseInt(_a, 0);
     }
 
     // parseInt(parseFloat*10^_b)
-    function parseInt(string memory _a, uint256 _b) internal pure returns (int256) {
+    function parseInt(string memory _a, uint256 _b) public pure returns (int256) {
         bytes memory bresult = bytes(_a);
         int256 mint = 0;
         bool decimals = false;
@@ -322,7 +365,7 @@ library JsmnSolLib {
         return mint;
     }
 
-    function uint2str(uint256 i) internal pure returns (string memory) {
+    function uint2str(uint256 i) public pure returns (string memory) {
         if (i == 0) return "0";
         uint256 j = i;
         uint256 len;
@@ -339,7 +382,7 @@ library JsmnSolLib {
         return string(bstr);
     }
 
-    function parseBool(string memory _a) internal pure returns (bool) {
+    function parseBool(string memory _a) public pure returns (bool) {
         if (strCompare(_a, "true") == 0) {
             return true;
         } else {
@@ -347,7 +390,7 @@ library JsmnSolLib {
         }
     }
 
-    function strCompare(string memory _a, string memory _b) internal pure returns (int256) {
+    function strCompare(string memory _a, string memory _b) public pure returns (int256) {
         bytes memory a = bytes(_a);
         bytes memory b = bytes(_b);
         uint256 minLength = a.length;
