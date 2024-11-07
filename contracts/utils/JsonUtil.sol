@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { IJsonUtil } from "../interfaces/precompile/IJsonUtil.sol";
+import { JsonParser } from "../utils/JsonParser.sol";
 
 library JsonUtil {
     // solhint-disable private-vars-leading-underscore
