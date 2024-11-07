@@ -36,24 +36,33 @@ library JsonParser {
         return (p, t);
     }
 
-    function allocateToken(Parser memory parser, Token[] memory tokens) public pure returns (bool, Token memory) {
+    function allocateToken(
+        Parser memory parser,
+        Token[] memory tokens
+    ) public pure returns (bool, Parser memory, Token memory) {
         if (parser.toknext >= tokens.length) {
             // no more space in tokens
-            return (false, tokens[tokens.length - 1]);
+            return (false, parser, tokens[tokens.length - 1]);
         }
         Token memory token = Token(JsonType.UNDEFINED, 0, false, 0, false, 0);
         tokens[parser.toknext] = token;
         parser.toknext++;
-        return (true, token);
+        return (true, parser, token);
     }
 
-    function fillToken(Token memory token, JsonType jsonType, uint256 start, uint256 end) public pure {
+    function fillToken(
+        Token memory token,
+        JsonType jsonType,
+        uint256 start,
+        uint256 end
+    ) public pure returns (Token memory) {
         token.jsonType = jsonType;
         token.start = start;
         token.startSet = true;
         token.end = end;
         token.endSet = true;
         token.size = 0;
+        return token;
     }
 
     function parseString(Parser memory parser, Token[] memory tokens, bytes memory s) public pure returns (uint256) {
@@ -67,7 +76,7 @@ library JsonParser {
 
             // Quote -> end of string
             if (c == '"') {
-                (success, token) = allocateToken(parser, tokens);
+                (success, , token) = allocateToken(parser, tokens);
                 if (!success) {
                     parser.pos = start;
                     return RETURN_ERROR_NO_MEM;
@@ -124,7 +133,7 @@ library JsonParser {
         }
 
         // found the end
-        (success, token) = allocateToken(parser, tokens);
+        (success, , token) = allocateToken(parser, tokens);
         if (!success) {
             parser.pos = start;
             return RETURN_ERROR_NO_MEM;
@@ -274,7 +283,7 @@ library JsonParser {
         uint256 count
     ) private pure returns (bool success, uint256 newCount) {
         Token memory token;
-        (success, token) = allocateToken(parser, tokens);
+        (success, , token) = allocateToken(parser, tokens);
         if (!success) return (false, count);
 
         if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
