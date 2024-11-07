@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-library JsmnSolLib {
-    enum JsmnType {
+library JsonParser {
+    enum JsonType {
         UNDEFINED,
         OBJECT,
         ARRAY,
@@ -16,7 +16,7 @@ library JsmnSolLib {
     uint256 public constant RETURN_ERROR_NO_MEM = 3;
 
     struct Token {
-        JsmnType jsmnType;
+        JsonType jsonType;
         uint256 start;
         bool startSet;
         uint256 end;
@@ -41,14 +41,14 @@ library JsmnSolLib {
             // no more space in tokens
             return (false, tokens[tokens.length - 1]);
         }
-        Token memory token = Token(JsmnType.UNDEFINED, 0, false, 0, false, 0);
+        Token memory token = Token(JsonType.UNDEFINED, 0, false, 0, false, 0);
         tokens[parser.toknext] = token;
         parser.toknext++;
         return (true, token);
     }
 
-    function fillToken(Token memory token, JsmnType jsmnType, uint256 start, uint256 end) public pure {
-        token.jsmnType = jsmnType;
+    function fillToken(Token memory token, JsonType jsonType, uint256 start, uint256 end) public pure {
+        token.jsonType = jsonType;
         token.start = start;
         token.startSet = true;
         token.end = end;
@@ -72,7 +72,7 @@ library JsmnSolLib {
                     parser.pos = start;
                     return RETURN_ERROR_NO_MEM;
                 }
-                fillToken(token, JsmnType.STRING, start + 1, parser.pos);
+                fillToken(token, JsonType.STRING, start + 1, parser.pos);
                 return RETURN_SUCCESS;
             }
 
@@ -129,7 +129,7 @@ library JsmnSolLib {
             parser.pos = start;
             return RETURN_ERROR_NO_MEM;
         }
-        fillToken(token, JsmnType.PRIMITIVE, start, parser.pos);
+        fillToken(token, JsonType.PRIMITIVE, start, parser.pos);
         parser.pos--;
         return RETURN_SUCCESS;
     }
@@ -278,7 +278,7 @@ library JsmnSolLib {
         if (!success) return (false, count);
 
         if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
-        token.jsmnType = (parser.pos == 0x7b ? JsmnType.OBJECT : JsmnType.ARRAY);
+        token.jsonType = (parser.pos == 0x7b ? JsonType.OBJECT : JsonType.ARRAY);
         token.start = parser.pos;
         token.startSet = true;
         parser.toksuper = int256(parser.toknext - 1);
@@ -290,12 +290,12 @@ library JsmnSolLib {
         Token[] memory tokens,
         bytes1 c
     ) private pure returns (bool success, uint256 newCount) {
-        JsmnType tokenType = (c == 0x7d ? JsmnType.OBJECT : JsmnType.ARRAY);
+        JsonType tokenType = (c == 0x7d ? JsonType.OBJECT : JsonType.ARRAY);
         bool isUpdated = false;
         for (uint256 i = parser.toknext - 1; i >= 0; i--) {
             Token memory token = tokens[i];
             if (token.startSet && !token.endSet) {
-                if (token.jsmnType != tokenType) return (false, 0);
+                if (token.jsonType != tokenType) return (false, 0);
                 parser.toksuper = -1;
                 tokens[i].end = parser.pos + 1;
                 tokens[i].endSet = true;
@@ -308,7 +308,7 @@ library JsmnSolLib {
 
     function handleComma(Parser memory parser, Token[] memory tokens) private pure {
         for (uint256 i = parser.toknext - 1; i >= 0; i--) {
-            if (tokens[i].jsmnType == JsmnType.ARRAY || tokens[i].jsmnType == JsmnType.OBJECT) {
+            if (tokens[i].jsonType == JsonType.ARRAY || tokens[i].jsonType == JsonType.OBJECT) {
                 if (tokens[i].startSet && !tokens[i].endSet) {
                     parser.toksuper = int256(i);
                     break;
