@@ -15,7 +15,8 @@
   ],
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.0",
-    "@openzeppelin/contracts-upgradeable": "^5.0.0"
+    "@openzeppelin/contracts-upgradeable": "^5.0.0",
+    "chai": "^5.1.2"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.3",
@@ -44,7 +45,7 @@
     "build": "forge build --extra-output-files bin --extra-output-files abi",
     "build:ts": "yarn hardhat-esm compile && tsc",
     "build:docs": "yarn hardhat docgen",
-    "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
+    "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.ts",
     "thirdweb:build": "bun thirdweb@latest detect",
     "thirdweb:deploy": "bun thirdweb@latest deploy",
     "thirdweb:release": "bun thirdweb@latest release"
