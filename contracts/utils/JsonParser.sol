@@ -165,7 +165,10 @@ library JsonParser {
 
             if (c == '"') {
                 (uint8 stringResult, ) = parseString(parser, tokens, s);
-                if (stringResult != RETURN_SUCCESS) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
+                if (stringResult != RETURN_SUCCESS) {
+                    // Propagate the actual error code instead of always returning INVALID_JSON
+                    return (stringResult, tokens, 0);
+                }
                 if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
                 continue;
             }
@@ -193,17 +196,39 @@ library JsonParser {
         return (RETURN_SUCCESS, tokens, parser.toknext);
     }
 
+    // function processOpeningBracket(
+    //     Parser memory parser,
+    //     Token[] memory tokens,
+    //     bytes memory s // Need to pass in the bytes array
+    // ) internal pure returns (bool) {
+    //     (bool success, Token memory token) = allocateToken(parser, tokens);
+    //     if (!success) return false;
+
+    //     if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
+
+    //     // Fix: Compare the actual byte at parser.pos
+    //     token.jsonType = (s[parser.pos] == bytes1(0x7b)) ? JsonType.OBJECT : JsonType.ARRAY;
+    //     token.start = parser.pos;
+    //     token.startSet = true;
+    //     parser.toksuper = int256(parser.toknext - 1);
+    //     return true;
+    // }
+
     function processOpeningBracket(
         Parser memory parser,
         Token[] memory tokens,
-        bytes memory s // Need to pass in the bytes array
+        bytes memory s
     ) internal pure returns (bool) {
+        // First check if we have space for the new token
+        if (parser.toknext >= tokens.length) {
+            return false; // This will trigger RETURN_ERROR_NO_MEM
+        }
+
         (bool success, Token memory token) = allocateToken(parser, tokens);
         if (!success) return false;
 
         if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
 
-        // Fix: Compare the actual byte at parser.pos
         token.jsonType = (s[parser.pos] == bytes1(0x7b)) ? JsonType.OBJECT : JsonType.ARRAY;
         token.start = parser.pos;
         token.startSet = true;
