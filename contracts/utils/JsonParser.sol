@@ -2,6 +2,12 @@
 pragma solidity ^0.8.24;
 
 library JsonParser {
+    // Use uint8 instead of uint256 for error codes to save gas
+    uint8 constant RETURN_SUCCESS = 0;
+    uint8 constant RETURN_ERROR_INVALID_JSON = 1;
+    uint8 constant RETURN_ERROR_PART = 2;
+    uint8 constant RETURN_ERROR_NO_MEM = 3;
+
     enum JsonType {
         UNDEFINED,
         OBJECT,
@@ -10,19 +16,13 @@ library JsonParser {
         PRIMITIVE
     }
 
-    // NOTE: Could be limited to uint8
-    uint256 public constant RETURN_SUCCESS = 0;
-    uint256 public constant RETURN_ERROR_INVALID_JSON = 1;
-    uint256 public constant RETURN_ERROR_PART = 2;
-    uint256 public constant RETURN_ERROR_NO_MEM = 3;
-
     struct Token {
         JsonType jsonType;
         uint256 start;
-        bool startSet;
         uint256 end;
-        bool endSet;
         uint8 size;
+        bool startSet;
+        bool endSet;
     }
 
     struct Parser {
@@ -31,24 +31,22 @@ library JsonParser {
         int256 toksuper;
     }
 
-    function init(uint256 length) public pure returns (Parser memory, Token[] memory) {
-        Parser memory p = Parser(0, 0, -1);
-        Token[] memory t = new Token[](length);
-        return (p, t);
+    function init(uint256 length) internal pure returns (Parser memory parser, Token[] memory tokens) {
+        parser = Parser(0, 0, -1);
+        tokens = new Token[](length);
     }
 
     function allocateToken(
         Parser memory parser,
         Token[] memory tokens
-    ) public pure returns (bool, Parser memory, Token memory) {
+    ) internal pure returns (bool success, Token memory token) {
         if (parser.toknext >= tokens.length) {
-            // no more space in tokens
-            return (false, parser, tokens[tokens.length - 1]);
+            return (false, tokens[tokens.length - 1]);
         }
-        Token memory token = Token(JsonType.UNDEFINED, 0, false, 0, false, 0);
+        token = Token(JsonType.UNDEFINED, 0, 0, 0, false, false);
         tokens[parser.toknext] = token;
         parser.toknext++;
-        return (true, parser, token);
+        return (true, token);
     }
 
     function fillToken(
@@ -56,11 +54,11 @@ library JsonParser {
         JsonType jsonType,
         uint256 start,
         uint256 end
-    ) public pure returns (Token memory) {
+    ) internal pure returns (Token memory) {
         token.jsonType = jsonType;
         token.start = start;
-        token.startSet = true;
         token.end = end;
+        token.startSet = true;
         token.endSet = true;
         token.size = 0;
         return token;
@@ -70,104 +68,93 @@ library JsonParser {
         Parser memory parser,
         Token[] memory tokens,
         bytes memory s
-    ) public pure returns (uint256, Parser memory, Token memory) {
+    ) internal pure returns (uint8 returnCode, Token memory token) {
         uint256 start = parser.pos;
-        bool success;
-        Token memory token;
         parser.pos++;
 
         for (; parser.pos < s.length; parser.pos++) {
             bytes1 c = s[parser.pos];
 
-            // Quote -> end of string
             if (c == '"') {
-                (success, , token) = allocateToken(parser, tokens);
+                (bool success, Token memory newToken) = allocateToken(parser, tokens);
                 if (!success) {
                     parser.pos = start;
-                    return (RETURN_ERROR_NO_MEM, parser, token);
+                    return (RETURN_ERROR_NO_MEM, token);
                 }
-                token = fillToken(token, JsonType.STRING, start + 1, parser.pos);
-                return (RETURN_SUCCESS, parser, token);
+                token = fillToken(newToken, JsonType.STRING, start + 1, parser.pos);
+                return (RETURN_SUCCESS, token);
             }
 
+            // Handle escaped characters
             if (uint8(c) == 92 && parser.pos + 1 < s.length) {
-                // handle escaped characters: skip over it
                 parser.pos++;
-                if (
-                    s[parser.pos] == '"' ||
-                    s[parser.pos] == "/" ||
-                    s[parser.pos] == "\\" ||
-                    s[parser.pos] == "f" ||
-                    s[parser.pos] == "r" ||
-                    s[parser.pos] == "n" ||
-                    s[parser.pos] == "b" ||
-                    s[parser.pos] == "t"
-                ) {
+                bytes1 nextChar = s[parser.pos];
+                if (isValidEscapeChar(nextChar)) {
                     continue;
-                } else {
-                    // all other values are INVALID
-                    parser.pos = start;
-                    return (RETURN_ERROR_INVALID_JSON, parser, token);
                 }
+                parser.pos = start;
+                return (RETURN_ERROR_INVALID_JSON, token);
             }
         }
         parser.pos = start;
-        return (RETURN_ERROR_PART, parser, token);
+        return (RETURN_ERROR_PART, token);
+    }
+
+    function isValidEscapeChar(bytes1 c) internal pure returns (bool) {
+        return (c == '"' || c == "/" || c == "\\" || c == "f" || c == "r" || c == "n" || c == "b" || c == "t");
     }
 
     function parsePrimitive(
         Parser memory parser,
         Token[] memory tokens,
         bytes memory s
-    ) public pure returns (uint256, Parser memory, Token memory) {
-        bool found = false;
+    ) internal pure returns (uint8 returnCode, Token memory token) {
         uint256 start = parser.pos;
-        bytes1 c;
-        bool success;
-        Token memory token;
+        bool found = false;
+
         for (; parser.pos < s.length; parser.pos++) {
-            c = s[parser.pos];
-            if (c == " " || c == "\t" || c == "\n" || c == "\r" || c == "," || c == 0x7d || c == 0x5d) {
+            bytes1 c = s[parser.pos];
+            if (isTerminatingChar(c)) {
                 found = true;
                 break;
             }
-            if (uint8(c) < 32 || uint8(c) > 127) {
+            if (!isValidPrimitiveChar(c)) {
                 parser.pos = start;
-                return (RETURN_ERROR_INVALID_JSON, parser, token);
+                return (RETURN_ERROR_INVALID_JSON, token);
             }
         }
+
         if (!found) {
             parser.pos = start;
-            return (RETURN_ERROR_PART, parser, token);
+            return (RETURN_ERROR_PART, token);
         }
 
-        // found the end
-        (success, , token) = allocateToken(parser, tokens);
+        (bool success, Token memory newToken) = allocateToken(parser, tokens);
         if (!success) {
             parser.pos = start;
-            return (RETURN_ERROR_NO_MEM, parser, token);
+            return (RETURN_ERROR_NO_MEM, token);
         }
-        token = fillToken(token, JsonType.PRIMITIVE, start, parser.pos);
+
+        token = fillToken(newToken, JsonType.PRIMITIVE, start, parser.pos);
         parser.pos--;
-        return (RETURN_SUCCESS, parser, token);
+        return (RETURN_SUCCESS, token);
     }
 
-    // NOTE: Need to test the GAS consumption of this function....
     function parse(
         string memory json,
         uint256 numberElements
-    ) public pure returns (uint256, Token[] memory tokens, uint256) {
+    ) public pure returns (uint8 returnCode, Token[] memory tokens, uint256 tokenCount) {
         bytes memory s = bytes(json);
         Parser memory parser;
         (parser, tokens) = init(numberElements);
 
-        uint256 count = parser.toknext;
-
         for (; parser.pos < s.length; parser.pos++) {
             bytes1 c = s[parser.pos];
 
+            if (isWhitespace(c)) continue;
+
             if (isOpeningBracket(c)) {
-                if (!processOpeningBracket(parser, tokens, count)) return (RETURN_ERROR_NO_MEM, tokens, 0);
+                if (!processOpeningBracket(parser, tokens, s)) return (RETURN_ERROR_NO_MEM, tokens, 0);
                 continue;
             }
 
@@ -177,14 +164,14 @@ library JsonParser {
             }
 
             if (c == '"') {
-                if (!processString(parser, tokens, s, count)) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
+                (uint8 stringResult, ) = parseString(parser, tokens, s);
+                if (stringResult != RETURN_SUCCESS) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
+                if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
                 continue;
             }
 
-            if (isWhitespace(c)) continue;
-
             if (c == ":") {
-                processColon(parser);
+                parser.toksuper = int256(parser.toknext - 1);
                 continue;
             }
 
@@ -193,156 +180,103 @@ library JsonParser {
                 continue;
             }
 
-            if (isPrimitiveChar(c)) {
-                if (!processPrimitive(parser, tokens, s, count)) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
+            if (isPrimitiveStartChar(c)) {
+                (uint8 primResult, ) = parsePrimitive(parser, tokens, s);
+                if (primResult != RETURN_SUCCESS) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
+                if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
                 continue;
             }
 
-            if (isPrintableChar(c)) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
+            return (RETURN_ERROR_INVALID_JSON, tokens, 0);
         }
 
         return (RETURN_SUCCESS, tokens, parser.toknext);
     }
 
-    // Helper Functions
-
     function processOpeningBracket(
         Parser memory parser,
         Token[] memory tokens,
-        uint256 count
-    ) private pure returns (bool) {
-        (bool success, uint256 newCount) = handleOpeningBracket(parser, tokens, count);
-        if (success) count = newCount;
-        return success;
-    }
-
-    function processClosingBracket(Parser memory parser, Token[] memory tokens, bytes1 c) private pure returns (bool) {
-        (bool success, ) = handleClosingBracket(parser, tokens, c);
-        return success;
-    }
-
-    function processString(
-        Parser memory parser,
-        Token[] memory tokens,
-        bytes memory s,
-        uint256 count
-    ) private pure returns (bool) {
-        (uint256 r, , ) = parseString(parser, tokens, s);
-        if (r != RETURN_SUCCESS) return false;
-        count++;
-        if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
-        return true;
-    }
-
-    function processColon(Parser memory parser) private pure {
-        parser.toksuper = int256(parser.toknext - 1);
-    }
-
-    function processComma(Parser memory parser, Token[] memory tokens) private pure {
-        handleComma(parser, tokens);
-    }
-
-    function processPrimitive(
-        Parser memory parser,
-        Token[] memory tokens,
-        bytes memory s,
-        uint256 count
-    ) private pure returns (bool) {
-        uint256 r = handlePrimitive(parser, tokens, s);
-        if (r != RETURN_SUCCESS) return false;
-        count++;
-        if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
-        return true;
-    }
-
-    // Helper functions
-
-    function handleString(Parser memory parser, Token[] memory tokens, bytes memory s) private pure returns (uint256) {
-        (uint256 r, , ) = parseString(parser, tokens, s);
-        return r;
-    }
-
-    function handleColon(Parser memory parser) private pure {
-        parser.toksuper = int256(parser.toknext - 1);
-    }
-
-    function isOpeningBracket(bytes1 c) private pure returns (bool) {
-        return (c == 0x7b || c == 0x5b);
-    }
-
-    function isClosingBracket(bytes1 c) private pure returns (bool) {
-        return (c == 0x7d || c == 0x5d);
-    }
-
-    function isWhitespace(bytes1 c) private pure returns (bool) {
-        return (c == " " || c == 0x11 || c == 0x12 || c == 0x14);
-    }
-
-    function isPrimitiveChar(bytes1 c) private pure returns (bool) {
-        return ((c >= "0" && c <= "9") || c == "-" || c == "f" || c == "t" || c == "n");
-    }
-
-    function isPrintableChar(bytes1 c) private pure returns (bool) {
-        return (c >= 0x20 && c <= 0x7e);
-    }
-
-    function handleOpeningBracket(
-        Parser memory parser,
-        Token[] memory tokens,
-        uint256 count
-    ) private pure returns (bool success, uint256 newCount) {
-        Token memory token;
-        (success, , token) = allocateToken(parser, tokens);
-        if (!success) return (false, count);
+        bytes memory s // Need to pass in the bytes array
+    ) internal pure returns (bool) {
+        (bool success, Token memory token) = allocateToken(parser, tokens);
+        if (!success) return false;
 
         if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
-        token.jsonType = (parser.pos == 0x7b ? JsonType.OBJECT : JsonType.ARRAY);
+
+        // Fix: Compare the actual byte at parser.pos
+        token.jsonType = (s[parser.pos] == bytes1(0x7b)) ? JsonType.OBJECT : JsonType.ARRAY;
         token.start = parser.pos;
         token.startSet = true;
         parser.toksuper = int256(parser.toknext - 1);
-        return (true, count + 1);
+        return true;
     }
 
-    function handleClosingBracket(
-        Parser memory parser,
-        Token[] memory tokens,
-        bytes1 c
-    ) private pure returns (bool success, uint256 newCount) {
-        JsonType tokenType = (c == 0x7d ? JsonType.OBJECT : JsonType.ARRAY);
-        bool isUpdated = false;
-        for (uint256 i = parser.toknext - 1; i >= 0; i--) {
+    function processClosingBracket(Parser memory parser, Token[] memory tokens, bytes1 c) internal pure returns (bool) {
+        JsonType tokenType = (c == bytes1(0x7d)) ? JsonType.OBJECT : JsonType.ARRAY;
+
+        for (uint256 i = parser.toknext - 1; i < parser.toknext; i--) {
             Token memory token = tokens[i];
             if (token.startSet && !token.endSet) {
-                if (token.jsonType != tokenType) return (false, 0);
+                if (token.jsonType != tokenType) return false;
                 parser.toksuper = -1;
                 tokens[i].end = parser.pos + 1;
                 tokens[i].endSet = true;
-                isUpdated = true;
+                return true;
+            }
+            if (i == 0) break;
+        }
+        return false;
+    }
+
+    function processComma(Parser memory parser, Token[] memory tokens) internal pure {
+        for (uint256 i = parser.toknext - 1; i < parser.toknext; i--) {
+            if (
+                (tokens[i].jsonType == JsonType.ARRAY || tokens[i].jsonType == JsonType.OBJECT) &&
+                tokens[i].startSet &&
+                !tokens[i].endSet
+            ) {
+                parser.toksuper = int256(i);
                 break;
             }
-        }
-        return (isUpdated, 0);
-    }
-
-    function handleComma(Parser memory parser, Token[] memory tokens) private pure {
-        for (uint256 i = parser.toknext - 1; i >= 0; i--) {
-            if (tokens[i].jsonType == JsonType.ARRAY || tokens[i].jsonType == JsonType.OBJECT) {
-                if (tokens[i].startSet && !tokens[i].endSet) {
-                    parser.toksuper = int256(i);
-                    break;
-                }
-            }
+            if (i == 0) break;
         }
     }
 
-    function handlePrimitive(
-        Parser memory parser,
-        Token[] memory tokens,
-        bytes memory s
-    ) private pure returns (uint256 result) {
-        (result, , ) = parsePrimitive(parser, tokens, s);
+    function isOpeningBracket(bytes1 c) internal pure returns (bool) {
+        return (c == bytes1(0x7b) || c == bytes1(0x5b));
     }
 
+    function isClosingBracket(bytes1 c) internal pure returns (bool) {
+        return (c == bytes1(0x7d) || c == bytes1(0x5d));
+    }
+
+    function isWhitespace(bytes1 c) internal pure returns (bool) {
+        return (c == bytes1(0x20) || c == bytes1(0x09) || c == bytes1(0x0a) || c == bytes1(0x0d));
+    }
+
+    function isPrimitiveStartChar(bytes1 c) internal pure returns (bool) {
+        return ((c >= bytes1(0x30) && c <= bytes1(0x39)) || // 0-9
+            c == bytes1(0x2d) || // -
+            c == bytes1(0x66) || // f
+            c == bytes1(0x74) || // t
+            c == bytes1(0x6e)); // n
+    }
+
+    function isTerminatingChar(bytes1 c) internal pure returns (bool) {
+        return (c == bytes1(0x20) ||
+            c == bytes1(0x09) ||
+            c == bytes1(0x0a) ||
+            c == bytes1(0x0d) ||
+            c == bytes1(0x2c) ||
+            c == bytes1(0x7d) ||
+            c == bytes1(0x5d));
+    }
+
+    function isValidPrimitiveChar(bytes1 c) internal pure returns (bool) {
+        return (uint8(c) >= 32 && uint8(c) <= 127);
+    }
+
+    // String utility functions
     function getBytes(string memory json, uint256 start, uint256 end) public pure returns (string memory) {
         bytes memory s = bytes(json);
         bytes memory result = new bytes(end - start);
@@ -352,72 +286,68 @@ library JsonParser {
         return string(result);
     }
 
-    // parseInt
     function parseInt(string memory _a) public pure returns (int256) {
         return parseInt(_a, 0);
     }
 
-    // parseInt(parseFloat*10^_b)
     function parseInt(string memory _a, uint256 _b) public pure returns (int256) {
         bytes memory bresult = bytes(_a);
         int256 mint = 0;
         bool decimals = false;
         bool negative = false;
+        uint256 divisor = 1;
+
         for (uint256 i = 0; i < bresult.length; i++) {
-            if ((i == 0) && (bresult[i] == "-")) {
+            if (bresult[i] == bytes1(0x2d)) {
                 negative = true;
-            }
-            if ((uint8(bresult[i]) >= 48) && (uint8(bresult[i]) <= 57)) {
-                if (decimals) {
-                    if (_b == 0) break;
-                    else _b--;
-                }
-                mint *= 10;
-                mint += int256(uint256(uint8(bresult[i]))) - 48; // First convert to uint8, then to int256
-            } else if (uint8(bresult[i]) == 46) {
+            } else if (bresult[i] == bytes1(0x2e)) {
                 decimals = true;
+            } else if (uint8(bresult[i]) >= 48 && uint8(bresult[i]) <= 57) {
+                if (decimals && _b > 0) {
+                    divisor *= 10;
+                    mint = mint * 10 + int256(uint256(uint8(bresult[i]) - 48));
+                    _b--;
+                } else if (!decimals) {
+                    mint = mint * 10 + int256(uint256(uint8(bresult[i]) - 48));
+                }
             }
         }
-        if (_b > 0) mint *= int256(10 ** _b);
-        if (negative) mint *= -1;
-        return mint;
+        return negative ? -mint / int256(divisor) : mint / int256(divisor);
     }
 
     function uint2str(uint256 i) public pure returns (string memory) {
         if (i == 0) return "0";
-        uint256 j = i;
-        uint256 len;
-        while (j != 0) {
-            len++;
-            j /= 10;
+        uint256 temp = i;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
         }
-        bytes memory bstr = new bytes(len);
-        uint256 k = len - 1;
+        bytes memory buffer = new bytes(digits);
         while (i != 0) {
-            bstr[k--] = bytes1(uint8(48 + (i % 10)));
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(i % 10)));
             i /= 10;
         }
-        return string(bstr);
+        return string(buffer);
     }
 
     function parseBool(string memory _a) public pure returns (bool) {
-        if (strCompare(_a, "true") == 0) {
-            return true;
-        } else {
-            return false;
-        }
+        return strCompare(_a, "true") == 0;
     }
 
     function strCompare(string memory _a, string memory _b) public pure returns (int256) {
         bytes memory a = bytes(_a);
         bytes memory b = bytes(_b);
-        uint256 minLength = a.length;
-        if (b.length < minLength) minLength = b.length;
-        for (uint256 i = 0; i < minLength; i++)
+        uint256 minLength = a.length < b.length ? a.length : b.length;
+
+        for (uint256 i = 0; i < minLength; i++) {
             if (a[i] < b[i]) return -1;
-            else if (a[i] > b[i]) return 1;
+            if (a[i] > b[i]) return 1;
+        }
+
         if (a.length < b.length) return -1;
-        else if (a.length > b.length) return 1;
-        else return 0;
+        if (a.length > b.length) return 1;
+        return 0;
     }
 }
