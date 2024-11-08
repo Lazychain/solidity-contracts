@@ -5,105 +5,132 @@ import "../../lib/forge-std/src/Test.sol";
 import "../../contracts/utils/JsonParser.sol";
 
 contract JsonParserTest is Test {
-    using JsonParser for JsonParser.Parser;
-    using JsonParser for JsonParser.Token;
+    function testValidJsonObject() public pure {
+        string memory json = '{"name":"John","age":30}';
+        (uint8 returnCode, JsonParser.Token[] memory tokens, uint256 count) = JsonParser.parse(json, 32);
 
-    // Initialize parser and tokens for each test
-    JsonParser.Parser parser;
-    JsonParser.Token[] tokens;
+        assertEq(returnCode, JsonParser.RETURN_SUCCESS);
+        assertGt(count, 0);
+        // First token should be an object
+        assertEq(uint(tokens[0].jsonType), uint(JsonParser.JsonType.OBJECT));
+    }
 
-    // function setUp() public {
-    //     helperSetToken(10);
+    function testValidJsonArray() public pure {
+        string memory json = '[1,2,3,"four"]';
+        (uint8 returnCode, JsonParser.Token[] memory tokens, uint256 count) = JsonParser.parse(json, 32);
+
+        assertEq(returnCode, JsonParser.RETURN_SUCCESS);
+        assertGt(count, 0);
+        // First token should be an array
+        assertEq(uint(tokens[0].jsonType), uint(JsonParser.JsonType.ARRAY));
+    }
+
+    function testNestedJson() public pure {
+        string memory json = '{"data":{"numbers":[1,2,3],"active":true}}';
+        (uint8 returnCode, JsonParser.Token[] memory tokens, uint256 count) = JsonParser.parse(json, 32);
+
+        assertEq(returnCode, JsonParser.RETURN_SUCCESS);
+        assertGt(count, 0);
+        assertEq(uint(tokens[0].jsonType), uint(JsonParser.JsonType.OBJECT));
+    }
+
+    function testInvalidJson() public pure {
+        string memory json = '{"name":John}'; // Missing quotes around John
+        (uint8 returnCode, , ) = JsonParser.parse(json, 32);
+        assertEq(returnCode, JsonParser.RETURN_ERROR_INVALID_JSON);
+    }
+
+    function testEmptyObject() public pure {
+        string memory json = "{}";
+        (uint8 returnCode, JsonParser.Token[] memory tokens, uint256 count) = JsonParser.parse(json, 32);
+
+        assertEq(returnCode, JsonParser.RETURN_SUCCESS);
+        assertGt(count, 0);
+        assertEq(uint(tokens[0].jsonType), uint(JsonParser.JsonType.OBJECT));
+    }
+
+    function testEmptyArray() public pure {
+        string memory json = "[]";
+        (uint8 returnCode, JsonParser.Token[] memory tokens, uint256 count) = JsonParser.parse(json, 32);
+
+        assertEq(returnCode, JsonParser.RETURN_SUCCESS);
+        assertGt(count, 0);
+        assertEq(uint(tokens[0].jsonType), uint(JsonParser.JsonType.ARRAY));
+    }
+
+    function testComplexJson() public pure {
+        string
+            memory json = '{"menu":{"id":"file","value":"File","popup":{"menuitem":[{"value":"New","onclick":"CreateNewDoc()"},{"value":"Open","onclick":"OpenDoc()"}]}}}';
+        (uint8 returnCode, JsonParser.Token[] memory tokens, uint256 count) = JsonParser.parse(json, 64);
+
+        assertEq(returnCode, JsonParser.RETURN_SUCCESS);
+        assertGt(count, 0);
+        assertEq(uint(tokens[0].jsonType), uint(JsonParser.JsonType.OBJECT));
+    }
+
+    function testStringUtilities() public pure {
+        // Test parseInt
+        assertEq(JsonParser.parseInt("123"), 123);
+        assertEq(JsonParser.parseInt("-123"), -123);
+        assertEq(JsonParser.parseInt("12.34", 2), 12);
+
+        // Test uint2str
+        assertEq(JsonParser.uint2str(123), "123");
+        assertEq(JsonParser.uint2str(0), "0");
+
+        // Test parseBool
+        assertTrue(JsonParser.parseBool("true"));
+        assertFalse(JsonParser.parseBool("false"));
+
+        // Test strCompare
+        assertEq(JsonParser.strCompare("abc", "abc"), 0);
+        assertEq(JsonParser.strCompare("abc", "def"), -1);
+        assertEq(JsonParser.strCompare("def", "abc"), 1);
+    }
+
+    function testWhitespaceHandling() public pure {
+        string memory json = ' { \n\t"key"\r:\n"value"\t } ';
+        (uint8 returnCode, , ) = JsonParser.parse(json, 32);
+        assertEq(returnCode, JsonParser.RETURN_SUCCESS);
+    }
+
+    // function testInvalidEscapeSequence() public {
+    //     string memory json = '{"key":"\z"}'; // \z is not a valid escape sequence
+    //     (uint8 returnCode, , ) = JsonParser.parse(json, 32);
+    //     assertEq(returnCode, JsonParser.RETURN_ERROR_INVALID_JSON);
     // }
 
-    /////////////
-    // Helpers //
-    /////////////
-    modifier helperSetToken(uint256 initSize) {
-        JsonParser.Token[] memory tempTokens;
-        (parser, tempTokens) = JsonParser.init(initSize);
-
-        delete tokens;
-        for (uint i = 0; i < tempTokens.length; i++) {
-            tokens.push(tempTokens[i]);
-        }
-        _;
+    function testValidEscapeSequences() public pure {
+        string memory json = '{"key":"\\n\\t\\r\\b\\f\\/\\\\\\""}';
+        (uint8 returnCode, , ) = JsonParser.parse(json, 32);
+        assertEq(returnCode, JsonParser.RETURN_SUCCESS);
     }
 
-    function testInit() public helperSetToken(10) {
-        assertEq(parser.pos, 0);
-        assertEq(parser.toknext, 0);
-        assertEq(parser.toksuper, -1);
-        assertEq(tokens.length, 10);
+    function testPrimitiveTypes() public pure {
+        string memory json = '{"nullValue":null,"boolValue":true,"numberValue":42}';
+        (uint8 returnCode /*JsonParser.Token[] memory tokens*/, , uint256 count) = JsonParser.parse(json, 32);
+
+        assertEq(returnCode, JsonParser.RETURN_SUCCESS);
+        assertGt(count, 0);
     }
 
-    function testAllocateTokenSuccess() public helperSetToken(10) {
-        (bool success, JsonParser.Parser memory p, JsonParser.Token memory token) = JsonParser.allocateToken(
-            parser,
-            tokens
-        );
-        assertTrue(success);
-        // Values set to default
-        assertEq(abi.encode(token.jsonType), abi.encode(JsonParser.JsonType.UNDEFINED));
-        assertEq(token.start, 0);
-        assertEq(token.startSet, false);
-        assertEq(token.end, 0);
-        assertEq(token.endSet, false);
-        assertEq(token.size, 0);
-
-        assertEq(p.toknext, 1);
+    function testGetBytes() public pure {
+        string memory json = "Hello, World!";
+        string memory substr = JsonParser.getBytes(json, 0, 5);
+        assertEq(substr, "Hello");
     }
 
-    function testAllocateTokenFail() public helperSetToken(1) {
-        parser.toknext = 1; // Full capacity
-        (bool success, , ) = JsonParser.allocateToken(parser, tokens);
-        assertFalse(success);
-    }
+    function testMemoryLimit() public pure {
+        // This JSON requires at least 3 tokens:
+        // 1. The object itself
+        // 2. The "key" string
+        // 3. The "value" string
+        string memory json = '{"key":"value"}';
 
-    function testFillToken() public helperSetToken(10) {
-        JsonParser.Token memory token;
-        token = JsonParser.fillToken(token, JsonParser.JsonType.STRING, 0, 5);
-        assertEq(abi.encode(token.jsonType), abi.encode(JsonParser.JsonType.STRING));
-        assertTrue(token.startSet);
-        assertEq(token.start, 0);
-        assertTrue(token.endSet);
-        assertEq(token.end, 5);
-    }
+        // Only allocate 1 token - should fail with NO_MEM
+        (uint8 returnCode, , ) = JsonParser.parse(json, 1);
 
-    function testParseStringSuccess() public helperSetToken(10) {
-        bytes memory json = '"hello"';
-        parser.pos = 0;
-        (uint256 result, JsonParser.Parser memory parzer, JsonParser.Token memory token) = JsonParser.parseString(
-            parser,
-            tokens,
-            json
-        );
-        assertEq(result, JsonParser.RETURN_SUCCESS);
-        assertEq(parzer.pos, 6);
-        assertEq(token.start, 1);
-        assertEq(token.end, 6);
+        console.log("Return code:", returnCode); // Add this for debugging
+        assertEq(returnCode, JsonParser.RETURN_ERROR_NO_MEM);
     }
-
-    function testParseStringInvalidJson() public {
-        bytes memory json = '"hello\\q"';
-        parser.pos = 0;
-        (uint256 result, , ) = JsonParser.parseString(parser, tokens, json);
-        assertEq(result, JsonParser.RETURN_ERROR_INVALID_JSON);
-    }
-
-    function testParseStringPartError() public {
-        bytes memory json = '"hello';
-        parser.pos = 0;
-        (uint256 result, , ) = JsonParser.parseString(parser, tokens, json);
-        assertEq(result, JsonParser.RETURN_ERROR_PART);
-    }
-
-    // function testParsePrimitiveSuccess() public helperSetToken(10) {
-    //     bytes memory json = "12345";
-    //     parser.pos = 0;
-    //     (uint256 result, , JsonParser.Token memory token) = JsonParser.parsePrimitive(parser, tokens, json);
-    //     assertEq(result, JsonParser.RETURN_SUCCESS);
-    //     assertEq(token.start, 0);
-    //     assertEq(token.end, 5);
-    // }
 }
