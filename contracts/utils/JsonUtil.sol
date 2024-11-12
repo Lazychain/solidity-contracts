@@ -1,196 +1,196 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { IJsonUtil } from "../interfaces/precompile/IJsonUtil.sol";
 import { JsonParser } from "../utils/JsonParser.sol";
 
 library JsonUtil {
-    // solhint-disable private-vars-leading-underscore
-    IJsonUtil internal constant JSON_UTIL = IJsonUtil(0x00000000000000000000000000000F043a000003);
+    using JsonParser for JsonParser.Token;
+
+    uint8 private constant MAX_TOKENS = 128; // Experimental constant
+
+    ////////////
+    // ERRORS //
+    ////////////
+    error JsonUtil__InvalidJson();
+    error JsonUtil__PathNotFound();
+    error JsonUtil__TypeMismatch();
+    error JsonUtil__InvalidJsonPath();
 
     // solhint-enable private-vars-leading-underscore
 
     function get(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
-        return JSON_UTIL.get(_jsonBlob, _path);
+        (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
+        if (count == 0) revert JsonUtil__InvalidJson();
+
+        uint256 index = findPath(tokens, _path);
+        if (index == 0) revert JsonUtil__PathNotFound();
+
+        return JsonParser.getBytes(_jsonBlob, tokens[index].start, tokens[index].end);
     }
 
-    function getRaw(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
-        return JSON_UTIL.getRaw(_jsonBlob, _path);
-    }
+    function getRaw(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {}
 
-    function getInt(string memory _jsonBlob, string memory _path) internal pure returns (int256) {
-        return JSON_UTIL.getInt(_jsonBlob, _path);
-    }
+    function getInt(string memory _jsonBlob, string memory _path) internal pure returns (int256) {}
 
-    function getUint(string memory _jsonBlob, string memory _path) internal pure returns (uint256) {
-        return JSON_UTIL.getUint(_jsonBlob, _path);
-    }
+    function getUint(string memory _jsonBlob, string memory _path) internal pure returns (uint256) {}
 
-    function getBool(string memory _jsonBlob, string memory _path) internal pure returns (bool) {
-        return JSON_UTIL.getBool(_jsonBlob, _path);
-    }
+    function getBool(string memory _jsonBlob, string memory _path) internal pure returns (bool) {}
 
-    function dataURI(string memory _jsonBlob) internal pure returns (string memory) {
-        return JSON_UTIL.dataURI(_jsonBlob);
-    }
+    function dataURI(string memory _jsonBlob) internal pure returns (string memory) {}
 
-    function exists(string memory _jsonBlob, string memory _path) internal pure returns (bool) {
-        return JSON_UTIL.exists(_jsonBlob, _path);
-    }
+    function exists(string memory _jsonBlob, string memory _path) internal pure returns (bool) {}
 
-    function validate(string memory _jsonBlob) internal pure returns (bool) {
-        return JSON_UTIL.validate(_jsonBlob);
-    }
+    function validate(string memory _jsonBlob) internal pure returns (bool) {}
 
-    function compact(string memory _jsonBlob) internal pure returns (string memory) {
-        return JSON_UTIL.compact(_jsonBlob);
-    }
+    function compact(string memory _jsonBlob) internal pure returns (string memory) {}
 
     function set(
         string memory _jsonBlob,
         string memory _path,
         string memory _value
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.set(_jsonBlob, _path, _value);
-    }
+    ) internal pure returns (string memory) {}
 
     function set(
         string memory _jsonBlob,
         string[] memory _paths,
         string[] memory _values
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.set(_jsonBlob, _paths, _values);
-    }
+    ) internal pure returns (string memory) {}
 
     function setRaw(
         string memory _jsonBlob,
         string memory _path,
         string memory _rawBlob
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.setRaw(_jsonBlob, _path, _rawBlob);
-    }
+    ) internal pure returns (string memory) {}
 
     function setRaw(
         string memory _jsonBlob,
         string[] memory _paths,
         string[] memory _rawBlobs
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.setRaw(_jsonBlob, _paths, _rawBlobs);
-    }
+    ) internal pure returns (string memory) {}
 
-    function setInt(string memory _jsonBlob, string memory _path, int256 _value) internal pure returns (string memory) {
-        return JSON_UTIL.setInt(_jsonBlob, _path, _value);
-    }
+    function setInt(
+        string memory _jsonBlob,
+        string memory _path,
+        int256 _value
+    ) internal pure returns (string memory) {}
 
     function setInt(
         string memory _jsonBlob,
         string[] memory _paths,
         int256[] memory _values
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.setInt(_jsonBlob, _paths, _values);
-    }
+    ) internal pure returns (string memory) {}
 
     function setUint(
         string memory _jsonBlob,
         string memory _path,
         uint256 _value
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.setUint(_jsonBlob, _path, _value);
-    }
+    ) internal pure returns (string memory) {}
 
     function setUint(
         string memory _jsonBlob,
         string[] memory _paths,
         uint256[] memory _values
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.setUint(_jsonBlob, _paths, _values);
-    }
+    ) internal pure returns (string memory) {}
 
-    function setBool(string memory _jsonBlob, string memory _path, bool _value) internal pure returns (string memory) {
-        return JSON_UTIL.setBool(_jsonBlob, _path, _value);
-    }
+    function setBool(string memory _jsonBlob, string memory _path, bool _value) internal pure returns (string memory) {}
 
     function setBool(
         string memory _jsonBlob,
         string[] memory _paths,
         bool[] memory _values
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.setBool(_jsonBlob, _paths, _values);
-    }
+    ) internal pure returns (string memory) {}
 
     function subReplace(
         string memory _jsonBlob,
         string memory _searchPath,
         string memory _replacePath,
         string memory _value
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.subReplace(_jsonBlob, _searchPath, _replacePath, _value);
-    }
+    ) internal pure returns (string memory) {}
 
     function subReplace(
         string memory _jsonBlob,
         string memory _searchPath,
         string[] memory _replacePaths,
         string[] memory _values
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.subReplace(_jsonBlob, _searchPath, _replacePaths, _values);
-    }
+    ) internal pure returns (string memory) {}
 
     function subReplaceInt(
         string memory _jsonBlob,
         string memory _searchPath,
         string memory _replacePath,
         int256 _value
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.subReplaceInt(_jsonBlob, _searchPath, _replacePath, _value);
-    }
+    ) internal pure returns (string memory) {}
 
     function subReplaceInt(
         string memory _jsonBlob,
         string memory _searchPath,
         string[] memory _replacePaths,
         int256[] memory _values
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.subReplaceInt(_jsonBlob, _searchPath, _replacePaths, _values);
-    }
+    ) internal pure returns (string memory) {}
 
     function subReplaceUint(
         string memory _jsonBlob,
         string memory _searchPath,
         string memory _replacePath,
         uint256 _value
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.subReplaceUint(_jsonBlob, _searchPath, _replacePath, _value);
-    }
+    ) internal pure returns (string memory) {}
 
     function subReplaceUint(
         string memory _jsonBlob,
         string memory _searchPath,
         string[] memory _replacePaths,
         uint256[] memory _values
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.subReplaceUint(_jsonBlob, _searchPath, _replacePaths, _values);
-    }
+    ) internal pure returns (string memory) {}
 
     function subReplaceBool(
         string memory _jsonBlob,
         string memory _searchPath,
         string memory _replacePath,
         bool _value
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.subReplaceBool(_jsonBlob, _searchPath, _replacePath, _value);
-    }
+    ) internal pure returns (string memory) {}
 
     function subReplaceBool(
         string memory _jsonBlob,
         string memory _searchPath,
         string[] memory _replacePaths,
         bool[] memory _values
-    ) internal pure returns (string memory) {
-        return JSON_UTIL.subReplaceBool(_jsonBlob, _searchPath, _replacePaths, _values);
+    ) internal pure returns (string memory) {}
+
+    function remove(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {}
+
+    /////////////
+    // HELPERS //
+    /////////////
+    function parseJson(string memory _jsonBlob) internal pure returns (JsonParser.Token[] memory, uint256) {
+        (uint8 returnCode, JsonParser.Token[] memory tokens, uint256 count) = JsonParser.parse(_jsonBlob, MAX_TOKENS);
+        if (returnCode != JsonParser.RETURN_SUCCESS) revert JsonUtil__InvalidJson();
+        return (tokens, count);
     }
 
-    function remove(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
-        return JSON_UTIL.remove(_jsonBlob, _path);
+    function findPath(JsonParser.Token[] memory tokens, string memory path) internal pure returns (uint256) {
+        // need to take care of `.` to get correct vals
+        bytes memory pathBytes = bytes(path);
+        (uint256 currentToken, uint256 startIndex) = (0, 0);
+
+        for (uint256 i = 0; i < pathBytes.length; i++) {
+            if (i == pathBytes.length || pathBytes[i] == ".") {
+                if (startIndex == i) revert JsonUtil__InvalidJsonPath();
+
+                string memory segment = substring(path, startIndex, i);
+
+                currentToken = findToken(tokens, currentToken, segment);
+                if (currentToken == 0) revert JsonUtil__PathNotFound();
+
+                startIndex = i + 1;
+            }
+        }
     }
+
+    function findToken(
+        JsonParser.Token[] memory tokens,
+        uint256 parentToken,
+        string memory key
+    ) private pure returns (uint256) {}
+
+    function substring(string memory str, uint256 startIndex, uint256 endIndex) private pure returns (string memory) {}
 }
