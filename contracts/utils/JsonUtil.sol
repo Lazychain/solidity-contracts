@@ -28,19 +28,50 @@ library JsonUtil {
         return JsonParser.getBytes(_jsonBlob, tokens[index].start, tokens[index].end);
     }
 
-    function getRaw(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {}
+    function getRaw(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
+        // @dev: For now getRaw() == get()
+        (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
+        if (count == 0) revert JsonUtil__InvalidJson();
 
-    function getInt(string memory _jsonBlob, string memory _path) internal pure returns (int256) {}
+        uint256 tokenIndex = findPath(tokens, _path);
+        if (tokenIndex == 0) revert JsonUtil__PathNotFound();
 
-    function getUint(string memory _jsonBlob, string memory _path) internal pure returns (uint256) {}
+        return JsonParser.getBytes(_jsonBlob, tokens[tokenIndex].start, tokens[tokenIndex].end);
+    }
 
-    function getBool(string memory _jsonBlob, string memory _path) internal pure returns (bool) {}
+    function getInt(string memory _jsonBlob, string memory _path) internal pure returns (int256) {
+        string memory value = getRaw(_jsonBlob, _path);
+        return JsonParser.parseInt(value);
+    }
+
+    function getUint(string memory _jsonBlob, string memory _path) internal pure returns (uint256) {
+        int256 value = getInt(_jsonBlob, _path);
+        if (value < 0) revert JsonUtil__TypeMismatch(); // uint can't be -ve
+        return uint256(value);
+    }
+
+    function getBool(string memory _jsonBlob, string memory _path) internal pure returns (bool) {
+        string memory value = getRaw(_jsonBlob, _path);
+        return JsonParser.parseBool(value);
+    }
 
     function dataURI(string memory _jsonBlob) internal pure returns (string memory) {}
 
-    function exists(string memory _jsonBlob, string memory _path) internal pure returns (bool) {}
+    function exists(string memory _jsonBlob, string memory _path) internal pure returns (bool) {
+        try this.findPath(_jsonBlob, _path) returns (uint256 index) {
+            return index > 0;
+        } catch {
+            return false;
+        }
+    }
 
-    function validate(string memory _jsonBlob) internal pure returns (bool) {}
+    function validate(string memory _jsonBlob) internal pure returns (bool) {
+        try this.parseJson(_jsonBlob) returns (JsonParser.Token[] memory, uint256 count) {
+            return count > 0;
+        } catch {
+            return false;
+        }
+    }
 
     function compact(string memory _jsonBlob) internal pure returns (string memory) {}
 
@@ -48,7 +79,9 @@ library JsonUtil {
         string memory _jsonBlob,
         string memory _path,
         string memory _value
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        return setValueAtPath(_jsonBlob, _path, _value, false);
+    }
 
     function set(
         string memory _jsonBlob,
@@ -196,6 +229,7 @@ library JsonUtil {
         // Traverse child tokens
         for (uint256 i = parentToken + 1; i < tokens.length; i++) {
             if (tokens[i].startSet && JsonParser.strCompare(key, getTokenValue(tokens[i])) == 0) {
+                // ToDo: getTokenValue impl
                 return i;
             }
         }
