@@ -190,7 +190,25 @@ library JsonUtil {
         JsonParser.Token[] memory tokens,
         uint256 parentToken,
         string memory key
-    ) private pure returns (uint256) {}
+    ) private pure returns (uint256) {
+        JsonParser.Token memory parent = tokens[parentToken];
 
-    function substring(string memory str, uint256 startIndex, uint256 endIndex) private pure returns (string memory) {}
+        // Traverse child tokens
+        for (uint256 i = parentToken + 1; i < tokens.length; i++) {
+            if (tokens[i].startSet && JsonParser.strCompare(key, getTokenValue(tokens[i])) == 0) {
+                return i;
+            }
+        }
+
+        return 0;
+    }
+
+    function substring(string memory str, uint256 startIndex, uint256 endIndex) private pure returns (string memory) {
+        bytes memory strBytes = bytes(str);
+        bytes memory result = new bytes(endIndex - startIndex);
+        for (uint256 i = startIndex; i < endIndex; i++) {
+            result[i - startIndex] = strBytes[i];
+        }
+        return string(result);
+    }
 }
