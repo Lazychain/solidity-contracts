@@ -93,7 +93,9 @@ library JsonUtil {
         string memory _jsonBlob,
         string memory _path,
         string memory _rawBlob
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        return setValueAtPath(_jsonBlob, _path, _rawBlob, true);
+    }
 
     function setRaw(
         string memory _jsonBlob,
@@ -245,4 +247,11 @@ library JsonUtil {
         }
         return string(result);
     }
+
+    function setValueAtPath(
+        string memory _jsonBlob,
+        string memory _path,
+        string memory _value,
+        bool isRaw
+    ) private pure returns (string memory) {}
 }
