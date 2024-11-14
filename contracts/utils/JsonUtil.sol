@@ -162,14 +162,33 @@ library JsonUtil {
         string memory _searchPath,
         string memory _replacePath,
         string memory _value
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        // First find value at search path
+        string memory searchValue = get(_jsonBlob, _searchPath);
+        if (bytes(searchValue).length == 0) revert JsonUtil__PathNotFound();
+
+        // Replace value in replacement path
+        string memory replacePath = _replacePath;
+        if (bytes(replacePath).length == 0) {
+            replacePath = _searchPath;
+        }
+
+        return set(_jsonBlob, replacePath, _value);
+    }
 
     function subReplace(
         string memory _jsonBlob,
         string memory _searchPath,
         string[] memory _replacePaths,
         string[] memory _values
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        require(_replacePaths.length == _values.length, "Length mismatch");
+        string memory result = _jsonBlob;
+        for (uint256 i = 0; i < _replacePaths.length; i++) {
+            result = subReplace(result, _searchPath, _replacePaths[i], _values[i]);
+        }
+        return result;
+    }
 
     function subReplaceInt(
         string memory _jsonBlob,
