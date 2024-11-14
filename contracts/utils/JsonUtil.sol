@@ -307,7 +307,6 @@ library JsonUtil {
     }
 
     function findPath(JsonParser.Token[] memory tokens, string memory path) internal pure returns (uint256) {
-        // need to take care of `.` to get correct vals
         bytes memory pathBytes = bytes(path);
         (uint256 currentToken, uint256 startIndex) = (0, 0);
 
@@ -323,6 +322,15 @@ library JsonUtil {
                 startIndex = i + 1;
             }
         }
+
+        // Process final segment if not empty
+        if (startIndex < pathBytes.length) {
+            string memory finalSegment = substring(path, startIndex, pathBytes.length);
+            currentToken = findToken(tokens, currentToken, finalSegment);
+            if (currentToken == 0) revert JsonUtil__PathNotFound();
+        }
+
+        return currentToken;
     }
 
     function findToken(
