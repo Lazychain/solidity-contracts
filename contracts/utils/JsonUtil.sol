@@ -58,19 +58,14 @@ library JsonUtil {
     function dataURI(string memory _jsonBlob) internal pure returns (string memory) {}
 
     function exists(string memory _jsonBlob, string memory _path) internal pure returns (bool) {
-        try this.findPath(_jsonBlob, _path) returns (uint256 index) {
-            return index > 0;
-        } catch {
-            return false;
-        }
+        (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
+        if (count == 0) return false;
+        return findPath(tokens, _path) != 0;
     }
 
     function validate(string memory _jsonBlob) internal pure returns (bool) {
-        try this.parseJson(_jsonBlob) returns (JsonParser.Token[] memory, uint256 count) {
-            return count > 0;
-        } catch {
-            return false;
-        }
+        (uint8 returnCode, , ) = JsonParser.parse(_jsonBlob, MAX_TOKENS);
+        return returnCode == JsonParser.RETURN_SUCCESS;
     }
 
     function compact(string memory _jsonBlob) internal pure returns (string memory) {}
@@ -125,6 +120,14 @@ library JsonUtil {
             result = setInt(result, _paths[i], _values[i]);
         }
         return result;
+    }
+
+    function setUint(
+        string memory _jsonBlob,
+        string memory _path,
+        uint256 _value
+    ) internal pure returns (string memory) {
+        return set(_jsonBlob, _path, JsonParser.uint2str(_value));
     }
 
     function setUint(
@@ -259,7 +262,40 @@ library JsonUtil {
         return result;
     }
 
-    function remove(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {}
+    function remove(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
+        (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
+        if (count == 0) revert JsonUtil__InvalidJson();
+
+        uint256 tokenIndex = findPath(tokens, _path);
+        if (tokenIndex == 0) revert JsonUtil__PathNotFound();
+
+        // Create new JSON without the removed path
+        bytes memory result = new bytes(_jsonBlob.length);
+        uint256 resultIndex = 0;
+
+        // Copy everything before the token
+        for (uint256 i = 0; i < tokens[tokenIndex].start; i++) {
+            result[resultIndex++] = bytes(_jsonBlob)[i];
+        }
+
+        // Skip the token and trailing comma if present
+        uint256 skipTo = tokens[tokenIndex].end;
+        if (skipTo < bytes(_jsonBlob).length && bytes(_jsonBlob)[skipTo] == ",") {
+            skipTo++;
+        }
+
+        // Copy everything after
+        for (uint256 i = skipTo; i < bytes(_jsonBlob).length; i++) {
+            result[resultIndex++] = bytes(_jsonBlob)[i];
+        }
+
+        bytes memory finalResult = new bytes(resultIndex);
+        for (uint256 i = 0; i < resultIndex; i++) {
+            finalResult[i] = result[i];
+        }
+
+        return string(finalResult);
+    }
 
     /////////////
     // HELPERS //
