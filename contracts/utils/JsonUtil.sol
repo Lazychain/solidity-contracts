@@ -140,12 +140,6 @@ library JsonUtil {
         return result;
     }
 
-    function setUint(
-        string memory _jsonBlob,
-        string[] memory _paths,
-        uint256[] memory _values
-    ) internal pure returns (string memory) {}
-
     function setBool(string memory _jsonBlob, string memory _path, bool _value) internal pure returns (string memory) {
         return set(_jsonBlob, _path, _value ? "true" : "false");
     }
@@ -312,5 +306,17 @@ library JsonUtil {
 
     function formatJsonValue(string memory value) private pure returns (string memory) {
         return string(abi.encodePacked('"', value, '"'));
+    }
+
+    function getTokenValue(JsonParser.Token memory token) private pure returns (string memory) {
+        if (token.jsonType == JsonParser.JsonType.STRING) {
+            return
+                JsonParser.getBytes(
+                    string(token.start + 1, token.end) // +1 to skip opening quote
+                );
+        } else if (token.jsonType == JsonParser.JsonType.PRIMITIVE) {
+            return JsonParser.getBytes(string(token.start, token.end));
+        }
+        return "";
     }
 }
