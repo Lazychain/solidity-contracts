@@ -148,7 +148,14 @@ library JsonUtil {
         string memory _jsonBlob,
         string[] memory _paths,
         bool[] memory _values
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        require(_paths.length == _values.length, "Length mismatch");
+        string memory result = _jsonBlob;
+        for (uint256 i = 0; i < _paths.length; i++) {
+            result = setBool(result, _paths[i], _values[i]);
+        }
+        return result;
+    }
 
     function subReplace(
         string memory _jsonBlob,
