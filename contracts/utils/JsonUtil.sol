@@ -195,42 +195,69 @@ library JsonUtil {
         string memory _searchPath,
         string memory _replacePath,
         int256 _value
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        return subReplace(_jsonBlob, _searchPath, _replacePath, JsonParser.uint2str(uint256(_value)));
+    }
 
     function subReplaceInt(
         string memory _jsonBlob,
         string memory _searchPath,
         string[] memory _replacePaths,
         int256[] memory _values
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        require(_replacePaths.length == _values.length, "Length mismatch");
+        string memory result = _jsonBlob;
+        for (uint256 i = 0; i < _replacePaths.length; i++) {
+            result = subReplaceInt(result, _searchPath, _replacePaths[i], _values[i]);
+        }
+        return result;
+    }
 
     function subReplaceUint(
         string memory _jsonBlob,
         string memory _searchPath,
         string memory _replacePath,
         uint256 _value
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        return subReplace(_jsonBlob, _searchPath, _replacePath, JsonParser.uint2str(_value));
+    }
 
     function subReplaceUint(
         string memory _jsonBlob,
         string memory _searchPath,
         string[] memory _replacePaths,
         uint256[] memory _values
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        require(_replacePaths.length == _values.length, "Length mismatch");
+        string memory result = _jsonBlob;
+        for (uint256 i = 0; i < _replacePaths.length; i++) {
+            result = subReplaceUint(result, _searchPath, _replacePaths[i], _values[i]);
+        }
+        return result;
+    }
 
     function subReplaceBool(
         string memory _jsonBlob,
         string memory _searchPath,
         string memory _replacePath,
         bool _value
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        return subReplace(_jsonBlob, _searchPath, _replacePath, _value ? "true" : "false");
+    }
 
     function subReplaceBool(
         string memory _jsonBlob,
         string memory _searchPath,
         string[] memory _replacePaths,
         bool[] memory _values
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        require(_replacePaths.length == _values.length, "Length mismatch");
+        string memory result = _jsonBlob;
+        for (uint256 i = 0; i < _replacePaths.length; i++) {
+            result = subReplaceBool(result, _searchPath, _replacePaths[i], _values[i]);
+        }
+        return result;
+    }
 
     function remove(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {}
 
