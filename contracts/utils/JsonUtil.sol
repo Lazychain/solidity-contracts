@@ -87,7 +87,14 @@ library JsonUtil {
         string memory _jsonBlob,
         string[] memory _paths,
         string[] memory _values
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        require(_paths.length == _values.length, "Length mismatch");
+        string memory result = _jsonBlob;
+        for (uint256 i = 0; i < _paths.length; i++) {
+            result = set(result, _paths[i], _values[i]);
+        }
+        return result;
+    }
 
     function setRaw(
         string memory _jsonBlob,
@@ -103,23 +110,35 @@ library JsonUtil {
         string[] memory _rawBlobs
     ) internal pure returns (string memory) {}
 
-    function setInt(
-        string memory _jsonBlob,
-        string memory _path,
-        int256 _value
-    ) internal pure returns (string memory) {}
+    function setInt(string memory _jsonBlob, string memory _path, int256 _value) internal pure returns (string memory) {
+        return set(_jsonBlob, _path, JsonParser.uint2str(uint256(_value)));
+    }
 
     function setInt(
         string memory _jsonBlob,
         string[] memory _paths,
         int256[] memory _values
-    ) internal pure returns (string memory) {}
+    ) internal pure returns (string memory) {
+        require(_paths.length == _values.length, "Length mismatch");
+        string memory result = _jsonBlob;
+        for (uint256 i = 0; i < _paths.length; i++) {
+            result = setInt(result, _paths[i], _values[i]);
+        }
+        return result;
+    }
 
     function setUint(
         string memory _jsonBlob,
-        string memory _path,
-        uint256 _value
-    ) internal pure returns (string memory) {}
+        string[] memory _paths,
+        uint256[] memory _values
+    ) internal pure returns (string memory) {
+        require(_paths.length == _values.length, "Length mismatch");
+        string memory result = _jsonBlob;
+        for (uint256 i = 0; i < _paths.length; i++) {
+            result = setUint(result, _paths[i], _values[i]);
+        }
+        return result;
+    }
 
     function setUint(
         string memory _jsonBlob,
@@ -127,7 +146,9 @@ library JsonUtil {
         uint256[] memory _values
     ) internal pure returns (string memory) {}
 
-    function setBool(string memory _jsonBlob, string memory _path, bool _value) internal pure returns (string memory) {}
+    function setBool(string memory _jsonBlob, string memory _path, bool _value) internal pure returns (string memory) {
+        return set(_jsonBlob, _path, _value ? "true" : "false");
+    }
 
     function setBool(
         string memory _jsonBlob,
@@ -253,5 +274,43 @@ library JsonUtil {
         string memory _path,
         string memory _value,
         bool isRaw
-    ) private pure returns (string memory) {}
+    ) private pure returns (string memory) {
+        (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
+        if (count == 0) revert JsonUtil__InvalidJson();
+
+        uint256 tokenIndex = findPath(tokens, _path);
+        if (tokenIndex == 0) revert JsonUtil__PathNotFound();
+
+        // Create new JSON with updated value
+        bytes memory result = new bytes(_jsonBlob.length + _value.length);
+        uint256 resultIndex = 0;
+
+        // Copy until value position
+        for (uint256 i = 0; i < tokens[tokenIndex].start; i++) {
+            result[resultIndex++] = bytes(_jsonBlob)[i];
+        }
+
+        // Insert new value
+        bytes memory valueBytes = bytes(isRaw ? _value : formatJsonValue(_value));
+        for (uint256 i = 0; i < valueBytes.length; i++) {
+            result[resultIndex++] = valueBytes[i];
+        }
+
+        // Copy rest of JSON
+        for (uint256 i = tokens[tokenIndex].end; i < bytes(_jsonBlob).length; i++) {
+            result[resultIndex++] = bytes(_jsonBlob)[i];
+        }
+
+        // Trim to actual size
+        bytes memory finalResult = new bytes(resultIndex);
+        for (uint256 i = 0; i < resultIndex; i++) {
+            finalResult[i] = result[i];
+        }
+
+        return string(finalResult);
+    }
+
+    function formatJsonValue(string memory value) private pure returns (string memory) {
+        return string(abi.encodePacked('"', value, '"'));
+    }
 }
