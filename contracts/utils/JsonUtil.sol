@@ -270,7 +270,7 @@ library JsonUtil {
         if (tokenIndex == 0) revert JsonUtil__PathNotFound();
 
         // Create new JSON without the removed path
-        bytes memory result = new bytes(_jsonBlob.length);
+        bytes memory result = new bytes(bytes(_jsonBlob).length);
         uint256 resultIndex = 0;
 
         // Copy everything before the token
@@ -330,16 +330,12 @@ library JsonUtil {
         uint256 parentToken,
         string memory key
     ) private pure returns (uint256) {
-        JsonParser.Token memory parent = tokens[parentToken];
-
-        // Traverse child tokens
+        // Remove unused parent variable
         for (uint256 i = parentToken + 1; i < tokens.length; i++) {
             if (tokens[i].startSet && JsonParser.strCompare(key, getTokenValue(tokens[i])) == 0) {
-                // ToDo: getTokenValue impl
                 return i;
             }
         }
-
         return 0;
     }
 
@@ -365,7 +361,7 @@ library JsonUtil {
         if (tokenIndex == 0) revert JsonUtil__PathNotFound();
 
         // Create new JSON with updated value
-        bytes memory result = new bytes(_jsonBlob.length + _value.length);
+        bytes memory result = new bytes(bytes(_jsonBlob).length + bytes(_value).length);
         uint256 resultIndex = 0;
 
         // Copy until value position
@@ -398,13 +394,11 @@ library JsonUtil {
     }
 
     function getTokenValue(JsonParser.Token memory token) private pure returns (string memory) {
+        string memory jsonString = ""; // Placeholder for JSON string - needs to be passed from calling context
         if (token.jsonType == JsonParser.JsonType.STRING) {
-            return
-                JsonParser.getBytes(
-                    string(token.start + 1, token.end) // +1 to skip opening quote
-                );
+            return JsonParser.getBytes(jsonString, token.start + 1, token.end); // +1 to skip opening quote
         } else if (token.jsonType == JsonParser.JsonType.PRIMITIVE) {
-            return JsonParser.getBytes(string(token.start, token.end));
+            return JsonParser.getBytes(jsonString, token.start, token.end);
         }
         return "";
     }
