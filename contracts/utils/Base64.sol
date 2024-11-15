@@ -16,7 +16,7 @@ library Base64 {
 
     /// @dev Encodes the input data into a URL-safe base64 string
     function encodeURL(bytes memory _data) internal pure returns (string memory) {
-        return _encode(_data, _TABLE_URL, false);
+        return _encode(_data, _TABLE_URL, true);
     }
 
     /// @dev Decodes the input base64 string into bytes

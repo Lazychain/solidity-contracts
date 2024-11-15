@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../contracts/utils/Base64.sol" ;
+import "../../contracts/utils/Base64.sol" ;
 
 contract Base64Test is Test {
     using Base64 for bytes;
@@ -15,10 +15,18 @@ contract Base64Test is Test {
     }
 
     function testEncodeURL() public {
-        bytes memory data = bytes("hello world");
+        bytes memory data = bytes("http://pepe.com:8545");
         string memory encodedURL = Base64.encodeURL(data);
-        string memory expected = "aGVsbG8gd29ybGQ";
+        string memory expected = "aHR0cDovL3BlcGUuY29tOjg1NDU=";
         assertEq(encodedURL, expected, "Base64URL encode failed");
+    }
+
+    function testDecodePath() public{
+        bytes memory filePath = bytes("file://pepe.json");
+        string memory encodedfilePath = Base64.encodeURL(filePath);
+        string memory expectedfilePath = "ZmlsZTovL3BlcGUuanNvbg==";
+
+        assertEq(encodedfilePath, expectedfilePath, "Base64URL encode for path failed");
     }
 
     function testDecode() public {
@@ -34,7 +42,7 @@ contract Base64Test is Test {
     }
 
     function testEncodeDecodeURL() public {
-        bytes memory data = bytes("Test encoding and decoding round-trip URL!");
+        bytes memory data = bytes("http://pepe.com:8545");
         string memory encodedURL = Base64.encodeURL(data);
         bytes memory decodedURL = Base64.decodeURL(encodedURL);
         assertEq(decodedURL, data, "Round-trip Base64URL encode/decode failed");
