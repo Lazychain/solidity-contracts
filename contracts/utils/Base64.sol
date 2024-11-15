@@ -9,6 +9,9 @@ library Base64 {
     string internal constant _TABLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     string internal constant _TABLE_URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
+    uint256 private constant MAX_INPUT_LENGTH = 1_000_000; // 1MB
+    uint256 private constant MAX_ENCODED_LENGTH = 1_333_334;
+
     /// @dev Encodes the input data into a base64 string
     function encode(bytes memory _data) internal pure returns (string memory) {
             return _encode(_data, _TABLE, true);
@@ -41,6 +44,7 @@ library Base64 {
      */
     function _encode(bytes memory data, string memory table, bool withPadding) private pure returns (string memory) {
         if (data.length == 0) return "";
+        require(data.length <= MAX_INPUT_LENGTH, "Base64: input too long");
 
         // Calculate the length of the encoded result
         uint256 resultLength = withPadding ? 4 * ((data.length + 2) / 3) : (4 * data.length + 2) / 3;
@@ -100,6 +104,8 @@ library Base64 {
     function _decode(string memory data, string memory table) private pure returns (bytes memory) {
         uint256 len = bytes(data).length;  // Get the length of the input encoded data
         if (len == 0) return "";  // If the input is empty, return an empty bytes array
+        require(len <= MAX_ENCODED_LENGTH, "Base64: encoded input too long");
+        require(len % 4 == 0, "Base64: invalid input length"); // Ensure input is properly padded
 
         // Initialize the decoding lookup table (map characters to their indices)
         uint8[128] memory decodeTable;

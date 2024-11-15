@@ -61,4 +61,40 @@ contract Base64Test is Test {
         bytes memory decodedURL = Base64.decodeURL(encodedURL);
         assertEq(decodedURL, data, "Empty Base64URL encode/decode failed");
     }
+
+    function testEncodeMaxLength() public {
+        bytes memory tooLongInput = new bytes(1_000_001);  // MAX_INPUT_LENGTH + 1
+        
+        // Fill with some data
+        for(uint i = 0; i < tooLongInput.length; i++) {
+            tooLongInput[i] = 0x41; // ASCII 'A'
+        }
+        
+        vm.expectRevert("Base64: input too long");
+        Base64.encode(tooLongInput);
+        
+        vm.expectRevert("Base64: input too long");
+        Base64.encodeURL(tooLongInput);
+        
+        // Test with exactly max length (should pass)
+        bytes memory maxLengthInput = new bytes(1_000_000);  // MAX_INPUT_LENGTH
+        for(uint i = 0; i < maxLengthInput.length; i++) {
+            maxLengthInput[i] = 0x41;
+        }
+        
+        // These should not revert
+        Base64.encode(maxLengthInput);
+        Base64.encodeURL(maxLengthInput);
+    }
+
+    function testInvalidDecodeLength() public {
+        // Create input with length not multiple of 4
+        string memory invalidLength = "SGVsbG8=W"; // 9 characters
+        
+        vm.expectRevert("Base64: invalid input length");
+        Base64.decode(invalidLength);
+        
+        vm.expectRevert("Base64: invalid input length");
+        Base64.decodeURL(invalidLength);
+    }
 }
