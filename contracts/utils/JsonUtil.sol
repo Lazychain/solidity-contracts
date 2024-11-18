@@ -18,11 +18,21 @@ library JsonUtil {
 
     // solhint-enable private-vars-leading-underscore
 
+    // function get(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
+    //     (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
+    //     if (count == 0) revert JsonUtil__InvalidJson();
+
+    //     uint256 index = findPath(tokens, _path);
+    //     if (index == 0) revert JsonUtil__PathNotFound();
+
+    //     return JsonParser.getBytes(_jsonBlob, tokens[index].start, tokens[index].end);
+    // }
+
     function get(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
         if (count == 0) revert JsonUtil__InvalidJson();
 
-        uint256 index = findPath(tokens, _path);
+        uint256 index = findPath(tokens, _path, _jsonBlob);
         if (index == 0) revert JsonUtil__PathNotFound();
 
         return JsonParser.getBytes(_jsonBlob, tokens[index].start, tokens[index].end);
@@ -33,7 +43,7 @@ library JsonUtil {
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
         if (count == 0) revert JsonUtil__InvalidJson();
 
-        uint256 tokenIndex = findPath(tokens, _path);
+        uint256 tokenIndex = findPath(tokens, _path, _jsonBlob);
         if (tokenIndex == 0) revert JsonUtil__PathNotFound();
 
         return JsonParser.getBytes(_jsonBlob, tokens[tokenIndex].start, tokens[tokenIndex].end);
@@ -60,7 +70,7 @@ library JsonUtil {
     function exists(string memory _jsonBlob, string memory _path) internal pure returns (bool) {
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
         if (count == 0) return false;
-        return findPath(tokens, _path) != 0;
+        return findPath(tokens, _path, _jsonBlob) != 0;
     }
 
     function validate(string memory _jsonBlob) internal pure returns (bool) {
@@ -266,7 +276,7 @@ library JsonUtil {
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
         if (count == 0) revert JsonUtil__InvalidJson();
 
-        uint256 tokenIndex = findPath(tokens, _path);
+        uint256 tokenIndex = findPath(tokens, _path, _jsonBlob);
         if (tokenIndex == 0) revert JsonUtil__PathNotFound();
 
         // Create new JSON without the removed path
@@ -302,46 +312,119 @@ library JsonUtil {
     /////////////
     function parseJson(string memory _jsonBlob) internal pure returns (JsonParser.Token[] memory, uint256) {
         (uint8 returnCode, JsonParser.Token[] memory tokens, uint256 count) = JsonParser.parse(_jsonBlob, MAX_TOKENS);
-        if (returnCode != JsonParser.RETURN_SUCCESS) revert JsonUtil__InvalidJson();
+        if (returnCode != JsonParser.RETURN_SUCCESS || count == 0) revert JsonUtil__InvalidJson();
         return (tokens, count);
     }
 
-    function findPath(JsonParser.Token[] memory tokens, string memory path) internal pure returns (uint256) {
+    function findPath(
+        JsonParser.Token[] memory tokens,
+        string memory path,
+        string memory jsonBlob
+    ) internal pure returns (uint256) {
         bytes memory pathBytes = bytes(path);
-        (uint256 currentToken, uint256 startIndex) = (0, 0);
+        if (pathBytes.length == 0) revert JsonUtil__InvalidJsonPath();
+
+        uint256 currentToken = 0;
+        uint256 startIndex = 0;
+        bool foundDot = false;
 
         for (uint256 i = 0; i < pathBytes.length; i++) {
-            if (i == pathBytes.length || pathBytes[i] == ".") {
-                if (startIndex == i) revert JsonUtil__InvalidJsonPath();
-
-                string memory segment = substring(path, startIndex, i);
-
-                currentToken = findToken(tokens, currentToken, segment);
-                if (currentToken == 0) revert JsonUtil__PathNotFound();
-
+            if (pathBytes[i] == ".") {
+                if (i == 0 || i == pathBytes.length - 1 || foundDot) {
+                    revert JsonUtil__InvalidJsonPath();
+                }
+                if (startIndex < i) {
+                    string memory segment = substring(path, startIndex, i);
+                    currentToken = processPathSegment(tokens, currentToken, segment, jsonBlob);
+                    if (currentToken == 0) revert JsonUtil__PathNotFound();
+                }
                 startIndex = i + 1;
+                foundDot = true;
+            } else {
+                foundDot = false;
             }
         }
 
-        // Process final segment if not empty
+        // Process final segment
         if (startIndex < pathBytes.length) {
             string memory finalSegment = substring(path, startIndex, pathBytes.length);
-            currentToken = findToken(tokens, currentToken, finalSegment);
+            currentToken = processPathSegment(tokens, currentToken, finalSegment, jsonBlob);
             if (currentToken == 0) revert JsonUtil__PathNotFound();
         }
 
         return currentToken;
     }
 
+    function processPathSegment(
+        JsonParser.Token[] memory tokens,
+        uint256 parentToken,
+        string memory segment,
+        string memory jsonBlob
+    ) private pure returns (uint256) {
+        bytes memory segBytes = bytes(segment);
+
+        // Check if segment is array access
+        if (segBytes.length > 2 && segBytes[0] == "[" && segBytes[segBytes.length - 1] == "]") {
+            // Extract the index part without using slice notation
+            string memory indexStr = substring(segment, 1, segBytes.length - 1);
+            return processArrayAccess(tokens, parentToken, indexStr);
+        }
+
+        return findToken(tokens, parentToken, segment, jsonBlob);
+    }
+
+    function processArrayAccess(
+        JsonParser.Token[] memory tokens,
+        uint256 parentToken,
+        string memory indexStr
+    ) private pure returns (uint256) {
+        uint256 index = uint256(JsonParser.parseInt(indexStr));
+        JsonParser.Token memory parent = tokens[parentToken];
+
+        if (parent.jsonType != JsonParser.JsonType.ARRAY) {
+            revert JsonUtil__PathNotFound();
+        }
+
+        uint256 arrayIndex = 0;
+        for (uint256 i = parentToken + 1; i < tokens.length && arrayIndex <= index; i++) {
+            if (tokens[i].startSet && arrayIndex == index) {
+                return i;
+            }
+            arrayIndex++;
+        }
+
+        revert JsonUtil__PathNotFound();
+    }
+
     function findToken(
         JsonParser.Token[] memory tokens,
         uint256 parentToken,
-        string memory key
+        string memory key,
+        string memory jsonBlob
     ) private pure returns (uint256) {
-        // Remove unused parent variable
-        for (uint256 i = parentToken + 1; i < tokens.length; i++) {
-            if (tokens[i].startSet && JsonParser.strCompare(key, getTokenValue(tokens[i])) == 0) {
-                return i;
+        JsonParser.Token memory parent = tokens[parentToken];
+        bool isObject = parent.jsonType == JsonParser.JsonType.OBJECT;
+
+        uint256 searchEnd = parentToken + parent.size;
+        if (searchEnd > tokens.length) searchEnd = tokens.length;
+
+        string memory searchKey;
+        for (uint256 i = parentToken + 1; i < searchEnd; i++) {
+            if (!tokens[i].startSet) continue;
+
+            if (isObject) {
+                // For objects, match against property name
+                searchKey = JsonParser.getBytes(jsonBlob, tokens[i].start + 1, tokens[i].end - 1);
+                if (JsonParser.strCompare(searchKey, key) == 0) {
+                    return i + 1; // Return the value token
+                }
+                i++; // Skip the value token
+            } else {
+                // For arrays/primitives, match against value directly
+                searchKey = JsonParser.getBytes(jsonBlob, tokens[i].start, tokens[i].end);
+                if (JsonParser.strCompare(searchKey, key) == 0) {
+                    return i;
+                }
             }
         }
         return 0;
@@ -349,6 +432,8 @@ library JsonUtil {
 
     function substring(string memory str, uint256 startIndex, uint256 endIndex) private pure returns (string memory) {
         bytes memory strBytes = bytes(str);
+        require(startIndex <= endIndex && endIndex <= strBytes.length, "Invalid substring indices");
+
         bytes memory result = new bytes(endIndex - startIndex);
         for (uint256 i = startIndex; i < endIndex; i++) {
             result[i - startIndex] = strBytes[i];
@@ -365,7 +450,7 @@ library JsonUtil {
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
         if (count == 0) revert JsonUtil__InvalidJson();
 
-        uint256 tokenIndex = findPath(tokens, _path);
+        uint256 tokenIndex = findPath(tokens, _path, _jsonBlob);
         if (tokenIndex == 0) revert JsonUtil__PathNotFound();
 
         // Create new JSON with updated value
@@ -401,10 +486,12 @@ library JsonUtil {
         return string(abi.encodePacked('"', value, '"'));
     }
 
-    function getTokenValue(JsonParser.Token memory token) private pure returns (string memory) {
-        string memory jsonString = ""; // Placeholder for JSON string - needs to be passed from calling context
+    function getTokenValue(
+        JsonParser.Token memory token,
+        string memory jsonString
+    ) private pure returns (string memory) {
         if (token.jsonType == JsonParser.JsonType.STRING) {
-            return JsonParser.getBytes(jsonString, token.start + 1, token.end); // +1 to skip opening quote
+            return JsonParser.getBytes(jsonString, token.start + 1, token.end - 1); // -1 to skip closing quote
         } else if (token.jsonType == JsonParser.JsonType.PRIMITIVE) {
             return JsonParser.getBytes(jsonString, token.start, token.end);
         }
