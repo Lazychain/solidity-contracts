@@ -402,31 +402,68 @@ library JsonUtil {
         string memory key,
         string memory jsonBlob
     ) private pure returns (uint256) {
+        if (parentToken >= tokens.length) return 0;
+
         JsonParser.Token memory parent = tokens[parentToken];
         bool isObject = parent.jsonType == JsonParser.JsonType.OBJECT;
+        bool isArray = parent.jsonType == JsonParser.JsonType.ARRAY;
 
-        uint256 searchEnd = parentToken + parent.size;
+        // For array access, try to parse key as index
+        if (isArray) {
+            return findArrayToken(tokens, parentToken, key);
+        }
+
+        // Calculate how many tokens to search through
+        uint256 searchEnd = parent.size > 0 ? parentToken + parent.size : tokens.length;
         if (searchEnd > tokens.length) searchEnd = tokens.length;
 
-        string memory searchKey;
-        for (uint256 i = parentToken + 1; i < searchEnd; i++) {
-            if (!tokens[i].startSet) continue;
+        // For objects, look for key:value pairs
+        if (isObject) {
+            for (uint256 i = parentToken + 1; i < searchEnd; i += 2) {
+                // Step by 2 for key:value pairs
+                if (!tokens[i].startSet) continue;
 
-            if (isObject) {
-                // For objects, match against property name
-                searchKey = JsonParser.getBytes(jsonBlob, tokens[i].start + 1, tokens[i].end - 1);
-                if (JsonParser.strCompare(searchKey, key) == 0) {
-                    return i + 1; // Return the value token
-                }
-                i++; // Skip the value token
-            } else {
-                // For arrays/primitives, match against value directly
-                searchKey = JsonParser.getBytes(jsonBlob, tokens[i].start, tokens[i].end);
-                if (JsonParser.strCompare(searchKey, key) == 0) {
-                    return i;
+                // Get the key name without quotes
+                string memory keyName = JsonParser.getBytes(
+                    jsonBlob,
+                    tokens[i].start + 1, // Skip opening quote
+                    tokens[i].end - 1 // Skip closing quote
+                );
+
+                if (JsonParser.strCompare(keyName, key) == 0) {
+                    if (i + 1 >= tokens.length) return 0; // Safety check
+                    return i + 1; // Return index of value
                 }
             }
         }
+
+        return 0;
+    }
+
+    function findArrayToken(
+        JsonParser.Token[] memory tokens,
+        uint256 parentToken,
+        string memory indexStr
+    ) private pure returns (uint256) {
+        // Try to parse index
+        int256 index = JsonParser.parseInt(indexStr);
+        if (index < 0) return 0;
+
+        JsonParser.Token memory parent = tokens[parentToken];
+        uint256 arrayIndex = 0;
+        uint256 searchEnd = parentToken + parent.size;
+
+        if (searchEnd > tokens.length) searchEnd = tokens.length;
+
+        for (uint256 i = parentToken + 1; i < searchEnd; i++) {
+            if (tokens[i].startSet) {
+                if (arrayIndex == uint256(index)) {
+                    return i;
+                }
+                arrayIndex++;
+            }
+        }
+
         return 0;
     }
 
