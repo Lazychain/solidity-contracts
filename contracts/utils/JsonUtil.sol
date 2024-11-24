@@ -16,18 +16,6 @@ library JsonUtil {
     error JsonUtil__TypeMismatch();
     error JsonUtil__InvalidJsonPath();
 
-    // solhint-enable private-vars-leading-underscore
-
-    // function get(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
-    //     (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
-    //     if (count == 0) revert JsonUtil__InvalidJson();
-
-    //     uint256 index = findPath(tokens, _path);
-    //     if (index == 0) revert JsonUtil__PathNotFound();
-
-    //     return JsonParser.getBytes(_jsonBlob, tokens[index].start, tokens[index].end);
-    // }
-
     function get(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
         if (count == 0) revert JsonUtil__InvalidJson();
