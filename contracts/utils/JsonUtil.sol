@@ -3,6 +3,9 @@ pragma solidity ^0.8.24;
 
 import { JsonParser } from "../utils/JsonParser.sol";
 
+/// @title JsonUtil Library
+/// @notice A utility library for working with JSON data in Solidity
+/// @dev Uses JsonParser library for low-level JSON parsing operations
 library JsonUtil {
     using JsonParser for JsonParser.Token;
 
@@ -16,6 +19,10 @@ library JsonUtil {
     error JsonUtil__TypeMismatch();
     error JsonUtil__InvalidJsonPath();
 
+    /// @notice Retrieves a string value from a JSON blob at a specified path
+    /// @param _jsonBlob The JSON string to parse
+    /// @param _path The path to the desired value (e.g., "user.name")
+    /// @return The string value at the specified path
     function get(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
         if (count == 0) revert JsonUtil__InvalidJson();
@@ -26,6 +33,10 @@ library JsonUtil {
         return JsonParser.getBytes(_jsonBlob, tokens[index].start, tokens[index].end);
     }
 
+    /// @notice Gets raw JSON value at specified path without processing
+    /// @param _jsonBlob The JSON string to parse
+    /// @param _path The path to the desired value
+    /// @return Raw string value at the specified path
     function getRaw(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
         // @dev: For now getRaw() == get()
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
@@ -37,37 +48,69 @@ library JsonUtil {
         return JsonParser.getBytes(_jsonBlob, tokens[tokenIndex].start, tokens[tokenIndex].end);
     }
 
+    /// @notice Gets an integer value from JSON at specified path
+    /// @param _jsonBlob The JSON string to parse
+    /// @param _path The path to the desired value
+    /// @return The integer value at the specified path
     function getInt(string memory _jsonBlob, string memory _path) internal pure returns (int256) {
         string memory value = getRaw(_jsonBlob, _path);
         return JsonParser.parseInt(value);
     }
 
+    /// @notice Gets an unsigned integer value from JSON at specified path
+    /// @param _jsonBlob The JSON string to parse
+    /// @param _path The path to the desired value
+    /// @return The unsigned integer value at the specified path
     function getUint(string memory _jsonBlob, string memory _path) internal pure returns (uint256) {
         int256 value = getInt(_jsonBlob, _path);
         if (value < 0) revert JsonUtil__TypeMismatch(); // uint can't be -ve
         return uint256(value);
     }
 
+    /// @notice Gets a boolean value from JSON at specified path
+    /// @param _jsonBlob The JSON string to parse
+    /// @param _path The path to the desired value
+    /// @return The boolean value at the specified path
     function getBool(string memory _jsonBlob, string memory _path) internal pure returns (bool) {
         string memory value = getRaw(_jsonBlob, _path);
         return JsonParser.parseBool(value);
     }
 
+    /// @notice Converts JSON to a data URI format
+    /// @dev Creates data URI representation of JSON
+    /// @param _jsonBlob JSON string to convert
+    /// @return Data URI string
     function dataURI(string memory _jsonBlob) internal pure returns (string memory) {}
 
+    /// @notice Checks if a path exists in the JSON blob
+    /// @param _jsonBlob The JSON string to parse
+    /// @param _path The path to check
+    /// @return True if the path exists, false otherwise
     function exists(string memory _jsonBlob, string memory _path) internal pure returns (bool) {
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
         if (count == 0) return false;
         return findPath(tokens, _path, _jsonBlob) != 0;
     }
 
+    /// @notice Validates if a string is valid JSON
+    /// @param _jsonBlob The JSON string to validate
+    /// @return True if valid JSON, false otherwise
     function validate(string memory _jsonBlob) internal pure returns (bool) {
         (uint8 returnCode, , ) = JsonParser.parse(_jsonBlob, MAX_TOKENS);
         return returnCode == JsonParser.RETURN_SUCCESS;
     }
 
+    /// @notice Compacts JSON by removing whitespace
+    /// @dev Removes unnecessary spacing while preserving structure
+    /// @param _jsonBlob JSON string to compact
+    /// @return Compacted JSON string
     function compact(string memory _jsonBlob) internal pure returns (string memory) {}
 
+    /// @notice Sets a string value in JSON at specified path
+    /// @param _jsonBlob The JSON string to modify
+    /// @param _path The path where to set the value
+    /// @param _value The string value to set
+    /// @return Updated JSON string
     function set(
         string memory _jsonBlob,
         string memory _path,
@@ -76,6 +119,11 @@ library JsonUtil {
         return setValueAtPath(_jsonBlob, _path, _value, false);
     }
 
+    /// @notice Sets multiple string values in JSON at specified paths
+    /// @param _jsonBlob The JSON string to modify
+    /// @param _paths Array of paths where to set values
+    /// @param _values Array of values to set
+    /// @return Updated JSON string
     function set(
         string memory _jsonBlob,
         string[] memory _paths,
@@ -89,6 +137,11 @@ library JsonUtil {
         return result;
     }
 
+    /// @notice Sets a raw JSON value at specified path
+    /// @param _jsonBlob The JSON string to modify
+    /// @param _path The path where to set the value
+    /// @param _rawBlob The raw JSON value to set
+    /// @return Updated JSON string
     function setRaw(
         string memory _jsonBlob,
         string memory _path,
@@ -97,16 +150,32 @@ library JsonUtil {
         return setValueAtPath(_jsonBlob, _path, _rawBlob, true);
     }
 
+    /// @notice Sets multiple raw JSON values at specified paths
+    /// @dev Applies multiple raw value updates sequentially
+    /// @param _jsonBlob JSON string to modify
+    /// @param _paths Array of paths
+    /// @param _rawBlobs Array of raw JSON values
+    /// @return Modified JSON string
     function setRaw(
         string memory _jsonBlob,
         string[] memory _paths,
         string[] memory _rawBlobs
     ) internal pure returns (string memory) {}
 
+    /// @notice Sets an integer value in JSON at specified path
+    /// @param _jsonBlob The JSON string to modify
+    /// @param _path The path where to set the value
+    /// @param _value The integer value to set
+    /// @return Updated JSON string
     function setInt(string memory _jsonBlob, string memory _path, int256 _value) internal pure returns (string memory) {
         return set(_jsonBlob, _path, JsonParser.uint2str(uint256(_value)));
     }
 
+    /// @notice Sets multiple integer values in JSON at specified paths
+    /// @param _jsonBlob The JSON string to modify
+    /// @param _paths Array of paths where to set values
+    /// @param _values Array of integer values to set
+    /// @return Updated JSON string
     function setInt(
         string memory _jsonBlob,
         string[] memory _paths,
@@ -120,6 +189,11 @@ library JsonUtil {
         return result;
     }
 
+    /// @notice Sets an unsigned integer value in JSON at specified path
+    /// @param _jsonBlob The JSON string to modify
+    /// @param _path The path where to set the value
+    /// @param _value The unsigned integer value to set
+    /// @return Updated JSON string
     function setUint(
         string memory _jsonBlob,
         string memory _path,
@@ -128,6 +202,11 @@ library JsonUtil {
         return set(_jsonBlob, _path, JsonParser.uint2str(_value));
     }
 
+    /// @notice Sets multiple unsigned integer values in JSON at specified paths
+    /// @param _jsonBlob The JSON string to modify
+    /// @param _paths Array of paths where to set values
+    /// @param _values Array of unsigned integer values to set
+    /// @return Updated JSON string
     function setUint(
         string memory _jsonBlob,
         string[] memory _paths,
@@ -141,10 +220,20 @@ library JsonUtil {
         return result;
     }
 
+    /// @notice Sets a boolean value in JSON at specified path
+    /// @param _jsonBlob The JSON string to modify
+    /// @param _path The path where to set the value
+    /// @param _value The boolean value to set
+    /// @return Updated JSON string
     function setBool(string memory _jsonBlob, string memory _path, bool _value) internal pure returns (string memory) {
         return set(_jsonBlob, _path, _value ? "true" : "false");
     }
 
+    /// @notice Sets multiple boolean values in JSON at specified paths
+    /// @param _jsonBlob The JSON string to modify
+    /// @param _paths Array of paths where to set values
+    /// @param _values Array of boolean values to set
+    /// @return Updated JSON string
     function setBool(
         string memory _jsonBlob,
         string[] memory _paths,
@@ -158,6 +247,12 @@ library JsonUtil {
         return result;
     }
 
+    /// @notice Replaces values in JSON based on a search path
+    /// @param _jsonBlob The JSON string to modify
+    /// @param _searchPath Path to search for
+    /// @param _replacePath Path where to replace value
+    /// @param _value New value to set
+    /// @return Updated JSON string
     function subReplace(
         string memory _jsonBlob,
         string memory _searchPath,
@@ -260,6 +355,11 @@ library JsonUtil {
         return result;
     }
 
+    /// @notice Removes a value at specified path from JSON
+    /// @dev Handles deletion of properties and array elements
+    /// @param _jsonBlob JSON string to modify
+    /// @param _path Path to remove
+    /// @return Modified JSON string
     function remove(string memory _jsonBlob, string memory _path) internal pure returns (string memory) {
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
         if (count == 0) revert JsonUtil__InvalidJson();
@@ -298,12 +398,23 @@ library JsonUtil {
     /////////////
     // HELPERS //
     /////////////
+
+    /// @notice Helper function to parse JSON into tokens
+    /// @dev Throws JsonUtil__InvalidJson if parsing fails
+    /// @param _jsonBlob The JSON string to parse
+    /// @return tokens Array of parsed tokens and count
     function parseJson(string memory _jsonBlob) internal pure returns (JsonParser.Token[] memory, uint256) {
         (uint8 returnCode, JsonParser.Token[] memory tokens, uint256 count) = JsonParser.parse(_jsonBlob, MAX_TOKENS);
         if (returnCode != JsonParser.RETURN_SUCCESS || count == 0) revert JsonUtil__InvalidJson();
         return (tokens, count);
     }
 
+    /// @notice Helper function to find a token at specified path
+    /// @dev Throws JsonUtil__PathNotFound if path is invalid
+    /// @param tokens Array of parsed tokens
+    /// @param path Path to search for
+    /// @param jsonBlob Original JSON string
+    /// @return Index of found token
     function findPath(
         JsonParser.Token[] memory tokens,
         string memory path,
@@ -343,6 +454,13 @@ library JsonUtil {
         return currentToken;
     }
 
+    /// @notice Processes a segment of a JSON path
+    /// @dev Handles both object properties and array indices
+    /// @param tokens Array of parsed tokens
+    /// @param parentToken Index of parent token
+    /// @param segment Path segment to process
+    /// @param jsonBlob Original JSON string
+    /// @return Index of found token
     function processPathSegment(
         JsonParser.Token[] memory tokens,
         uint256 parentToken,
@@ -361,6 +479,12 @@ library JsonUtil {
         return findToken(tokens, parentToken, segment, jsonBlob);
     }
 
+    /// @notice Processes array access in JSON path
+    /// @dev Handles numeric index access for arrays
+    /// @param tokens Array of parsed tokens
+    /// @param parentToken Index of parent token
+    /// @param indexStr String representation of array index
+    /// @return Index of found token
     function processArrayAccess(
         JsonParser.Token[] memory tokens,
         uint256 parentToken,
@@ -384,6 +508,13 @@ library JsonUtil {
         revert JsonUtil__PathNotFound();
     }
 
+    /// @notice Finds a token in an object by key
+    /// @dev Handles both object and array parent tokens
+    /// @param tokens Array of parsed tokens
+    /// @param parentToken Index of parent token
+    /// @param key Key to search for
+    /// @param jsonBlob Original JSON string
+    /// @return Index of found token
     function findToken(
         JsonParser.Token[] memory tokens,
         uint256 parentToken,
@@ -428,6 +559,12 @@ library JsonUtil {
         return 0;
     }
 
+    /// @notice Finds a token in an array by index
+    /// @dev Converts string index to number and finds corresponding token
+    /// @param tokens Array of parsed tokens
+    /// @param parentToken Index of parent token
+    /// @param indexStr String representation of array index
+    /// @return Index of found token
     function findArrayToken(
         JsonParser.Token[] memory tokens,
         uint256 parentToken,
@@ -455,6 +592,12 @@ library JsonUtil {
         return 0;
     }
 
+    /// @notice Extracts substring from a string
+    /// @dev Used for path parsing and value extraction
+    /// @param str Source string
+    /// @param startIndex Start index of substring
+    /// @param endIndex End index of substring
+    /// @return Extracted substring
     function substring(string memory str, uint256 startIndex, uint256 endIndex) private pure returns (string memory) {
         bytes memory strBytes = bytes(str);
         require(startIndex <= endIndex && endIndex <= strBytes.length, "Invalid substring indices");
@@ -466,6 +609,13 @@ library JsonUtil {
         return string(result);
     }
 
+    /// @notice Sets value at specified path in JSON
+    /// @dev Handles both raw and formatted JSON values
+    /// @param _jsonBlob JSON string to modify
+    /// @param _path Path where to set value
+    /// @param _value Value to set
+    /// @param isRaw Whether value should be treated as raw JSON
+    /// @return Modified JSON string
     function setValueAtPath(
         string memory _jsonBlob,
         string memory _path,
@@ -507,10 +657,19 @@ library JsonUtil {
         return string(finalResult);
     }
 
+    /// @notice Formats a string as a JSON value
+    /// @dev Adds quotes around string values
+    /// @param value String to format
+    /// @return Formatted JSON string value
     function formatJsonValue(string memory value) private pure returns (string memory) {
         return string(abi.encodePacked('"', value, '"'));
     }
 
+    /// @notice Extracts value from a token
+    /// @dev Handles different token types (string, primitive)
+    /// @param token Token to extract value from
+    /// @param jsonString Original JSON string
+    /// @return Extracted value as string
     function getTokenValue(
         JsonParser.Token memory token,
         string memory jsonString
