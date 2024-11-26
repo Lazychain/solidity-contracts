@@ -16,7 +16,7 @@ ignition/deployments/chain-31337
 node_modules
 .env
 
-out
+/build
 types
 
 # installation files
