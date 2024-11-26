@@ -137,4 +137,51 @@ contract JsonStoreTest is Test {
         }
         return string(result);
     }
+
+    function testAddPrepaidSlots() public {
+        // Initial check
+        assertEq(store.prepaid(testUser), 0);
+
+        // Add prepaid slots
+        vm.expectEmit(true, false, false, true);
+        emit SlotsPrepaid(testUser, 2);
+        // store.addPrepaidSlots(testUser, 2);
+
+        // Verify slots were added
+        assertEq(store.prepaid(testUser), 2);
+    }
+
+    function testMultipleSlotOperations() public {
+        // Add multiple prepaid slots
+        // store.addPrepaidSlots(testUser, 3);
+        assertEq(store.prepaid(testUser), 3);
+
+        // Use slots multiple times
+        store.set(TEST_SLOT, TEST_JSON);
+        assertEq(store.prepaid(testUser), 2);
+
+        bytes32 secondSlot = bytes32(uint256(2));
+        store.set(secondSlot, TEST_JSON);
+        assertEq(store.prepaid(testUser), 1);
+
+        // Verify both slots exist
+        assertTrue(store.exists(testUser, TEST_SLOT));
+        assertTrue(store.exists(testUser, secondSlot));
+
+        // Clear first slot
+        store.clear(TEST_SLOT);
+        assertFalse(store.exists(testUser, TEST_SLOT));
+        assertTrue(store.exists(testUser, secondSlot));
+    }
+
+    function testStorageConsistency() public {
+        // store.addPrepaidSlots(testUser, 1);
+        store.set(TEST_SLOT, TEST_JSON);
+
+        // Check data consistency
+        JsonStore.JsonData memory data = store.jsonStorage[TEST_SLOT];
+        assertEq(data.owner, testUser);
+        assertTrue(data.exists);
+        assertEq(data.jsonBlob, TEST_JSON);
+    }
 }
