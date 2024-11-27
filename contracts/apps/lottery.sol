@@ -224,16 +224,18 @@ contract NFTLottery {
         return userSpace.nickName;
     }    
 
-    function dashboard() public returns (UserNameSpace[10] memory) {
+    function dashboard() public view returns (UserNameSpace[10] memory) {
         return getTop10Winners();
     }
 
-    function getTop10Winners() private returns (UserNameSpace[10] memory) {
+    function getTop10Winners() private view returns (UserNameSpace[10] memory) {
         UserNameSpace[10] memory top10winners;
         // Extract the top 10 winners from the priority queue
-        PriorityQueue.Queue storage tempQueue = leaderboard; // Copy the queue so we can safely pop without affecting original
-        for (uint256 i = 0; i < 10 && tempQueue.size() > 0; i++) {
-            address winnerAddress = tempQueue.extractMax(); // Extract user with highest win_count
+        PriorityQueue.Queue memory tempQueue = leaderboard.copy();
+        // or use the assembly copy if there is significant gas
+        for (uint256 i = 0; i < 10 && tempQueue.heap.length > 0; i++) {
+            address winnerAddress = tempQueue.heap[i].value;
+
             UserNameSpace storage winner = userDetails[winnerAddress];
             top10winners[i] = winner; // Add the winner to the result array
         }
