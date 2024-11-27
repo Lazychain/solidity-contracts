@@ -175,35 +175,4 @@ library JsonStore {
         self.prepaidSlots[_owner] += _numSlots;
         emit SlotsPrepaid(_owner, _numSlots);
     }
-
-    // /**
-    //  * @notice Updates existing JSON data in a slot
-    //  * @param self The Store struct
-    //  * @param _slot The slot to update
-    //  * @param _jsonBlob The new JSON data
-    //  * @return bool indicating success
-    //  */
-    // function update(Store storage self, bytes32 _slot, string memory _jsonBlob) internal returns (bool) {
-    //     if (!exists(self, msg.sender, _slot)) revert JsonStore__SlotDoesNotExist();
-    //     if (bytes(_jsonBlob).length == 0) revert JsonStore__EmptyJson();
-    //     if (!JsonUtil.validate(_jsonBlob)) revert JsonStore__InvalidJson();
-
-    //     self.jsonStorage[_slot].jsonBlob = _jsonBlob;
-    //     emit JsonStored(msg.sender, _slot);
-    //     return true;
-    // }
-
-    // /**
-    //  * @notice Clears a JSON slot
-    //  * @param self The Store struct
-    //  * @param _slot The slot to clear
-    //  * @return bool indicating success
-    //  */
-    // function clear(Store storage self, bytes32 _slot) internal returns (bool) {
-    //     if (!exists(self, msg.sender, _slot)) revert JsonStore__SlotDoesNotExist();
-
-    //     delete self.jsonStorage[_slot];
-    //     emit JsonCleared(msg.sender, _slot);
-    //     return true;
-    // }
 }
