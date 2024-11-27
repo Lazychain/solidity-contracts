@@ -171,7 +171,7 @@ library JsonStore {
         return true;
     }
 
-    function prepaySlots(Store storage self, address _owner, uint64 _numSlots) internal {
+    function prepay(Store storage self, address _owner, uint64 _numSlots) internal {
         self.prepaidSlots[_owner] += _numSlots;
         emit SlotsPrepaid(_owner, _numSlots);
     }

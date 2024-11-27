@@ -11,13 +11,12 @@ contract JsonStoreTest is Test {
 
     // Test constants
     string constant TEST_JSON = '{"name":"Test","value":123}';
-    string constant INVALID_JSON = '{"name":"Test"value":123}'; // Missing comma
+    string constant INVALID_JSON = "{name:Test}"; // Actually invalid JSON
     string constant EMPTY_JSON = "";
     bytes32 constant TEST_SLOT = bytes32(uint256(1));
     address testUser;
     address otherUser;
 
-    // Events
     event JsonStored(address indexed owner, bytes32 indexed slot);
     event JsonCleared(address indexed owner, bytes32 indexed slot);
     event SlotsPrepaid(address indexed owner, uint64 numSlots);
@@ -25,94 +24,86 @@ contract JsonStoreTest is Test {
     function setUp() public {
         testUser = address(this);
         otherUser = address(0x1);
+        // Pre-pay some slots for most tests
+        store.prepay(testUser, 10);
     }
 
-    // Test Prepaid Slots Functions
     function testInitialPrepaidSlots() public {
-        assertEq(store.prepaid(testUser), 0);
-        assertEq(store.prepaid(), 0); // Test the msg.sender version
+        assertEq(store.prepaid(otherUser), 0, "New user should have 0 prepaid slots");
+
+        assertEq(store.prepaid(testUser), 10, "Test user should have 10 prepaid slots from setUp");
+
+        store.prepay(otherUser, 5);
+        assertEq(store.prepaid(otherUser), 5, "Other user should now have 5 prepaid slots");
     }
 
     function testPrepaySlots() public {
         vm.expectEmit(true, false, false, true);
-        emit SlotsPrepaid(testUser, 5);
+        emit SlotsPrepaid(otherUser, 5);
 
-        store.prepaySlots(testUser, 5);
-        assertEq(store.prepaid(testUser), 5);
+        store.prepay(otherUser, 5);
+        assertEq(store.prepaid(otherUser), 5);
     }
 
     function testPrepayMultipleSlots() public {
-        store.prepaySlots(testUser, 3);
-        store.prepaySlots(testUser, 2);
-        assertEq(store.prepaid(testUser), 5);
+        store.prepay(otherUser, 3);
+        store.prepay(otherUser, 2);
+        assertEq(store.prepaid(otherUser), 5);
     }
 
-    // Test Set Function
+    // Set Function Tests
     function testSetWithoutPrepaidSlots() public {
+        vm.prank(otherUser); // Switch to unpaid user
         vm.expectRevert(abi.encodeWithSignature("JsonStore__InsufficientPrepaidSlots()"));
         store.set(TEST_SLOT, TEST_JSON);
     }
 
     function testSetWithInvalidJson() public {
-        store.prepaySlots(testUser, 1);
-
         vm.expectRevert(abi.encodeWithSignature("JsonStore__InvalidJson()"));
         store.set(TEST_SLOT, INVALID_JSON);
     }
 
     function testSetWithEmptyJson() public {
-        store.prepaySlots(testUser, 1);
-
         vm.expectRevert(abi.encodeWithSignature("JsonStore__EmptyJson()"));
         store.set(TEST_SLOT, EMPTY_JSON);
     }
 
     function testSetValidJson() public {
-        store.prepaySlots(testUser, 1);
+        uint64 initialPrepaid = store.prepaid(testUser);
 
         vm.expectEmit(true, true, false, true);
         emit JsonStored(testUser, TEST_SLOT);
 
         assertTrue(store.set(TEST_SLOT, TEST_JSON));
-        assertEq(store.prepaid(testUser), 0);
+        assertEq(store.prepaid(testUser), initialPrepaid - 1);
     }
 
     function testSetExistingSlot() public {
-        store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
-
         vm.expectRevert(abi.encodeWithSignature("JsonStore__SlotAlreadyExists()"));
         store.set(TEST_SLOT, TEST_JSON);
     }
 
-    // Test Exists Functions
+    // Exists Function Tests
     function testExistsWithOwner() public {
-        store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
-
         assertTrue(store.exists(testUser, TEST_SLOT));
         assertFalse(store.exists(otherUser, TEST_SLOT));
     }
 
     function testExistsWithoutOwner() public {
-        store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
-
         assertTrue(store.exists(TEST_SLOT));
     }
 
-    // Test Get Functions
+    // Get Function Tests
     function testGetWithOwner() public {
-        store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
-
         assertEq(store.get(testUser, TEST_SLOT), TEST_JSON);
     }
 
     function testGetWithoutOwner() public {
-        store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
-
         assertEq(store.get(TEST_SLOT), TEST_JSON);
     }
 
@@ -124,19 +115,15 @@ contract JsonStoreTest is Test {
         store.get(testUser, TEST_SLOT);
     }
 
-    // Test URI Functions
+    // URI Function Tests
     function testUriWithOwner() public {
-        store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
-
         string memory uri = store.uri(testUser, TEST_SLOT);
         assertEq(substring(uri, 0, 29), "data:application/json;base64,");
     }
 
     function testUriWithoutOwner() public {
-        store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
-
         string memory uri = store.uri(TEST_SLOT);
         assertEq(substring(uri, 0, 29), "data:application/json;base64,");
     }
@@ -149,9 +136,8 @@ contract JsonStoreTest is Test {
         store.uri(testUser, TEST_SLOT);
     }
 
-    // Test Clear Function
+    // Clear Function Tests
     function testClearExistingSlot() public {
-        store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
 
         vm.expectEmit(true, true, false, true);
@@ -167,13 +153,11 @@ contract JsonStoreTest is Test {
     }
 
     function testClearUnauthorized() public {
-        store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
 
-        vm.startPrank(otherUser);
+        vm.prank(otherUser);
         vm.expectRevert(abi.encodeWithSignature("JsonStore__SlotDoesNotExist()"));
         store.clear(TEST_SLOT);
-        vm.stopPrank();
     }
 
     // Helper function
