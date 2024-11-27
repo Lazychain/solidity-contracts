@@ -38,7 +38,6 @@ library JsonStore {
     ////////////
     error JsonStore__EmptyJson();
     error JsonStore__InvalidJson();
-    error JsonStore__Unauthorized();
     error JsonStore__SlotDoesNotExist();
     error JsonStore__SlotAlreadyExists();
     error JsonStore__InsufficientPrepaidSlots();

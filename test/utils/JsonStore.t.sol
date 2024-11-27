@@ -2,127 +2,178 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { JsonStore } from "../../contracts/utils/JsonStore.sol";
 import { Base64 } from "../../contracts/utils/Base64.sol";
+import { JsonStore } from "../../contracts/utils/JsonStore.sol";
 
 contract JsonStoreTest is Test {
     using JsonStore for JsonStore.Store;
     JsonStore.Store internal store;
 
+    // Test constants
     string constant TEST_JSON = '{"name":"Test","value":123}';
     string constant INVALID_JSON = '{"name":"Test"value":123}'; // Missing comma
+    string constant EMPTY_JSON = "";
     bytes32 constant TEST_SLOT = bytes32(uint256(1));
     address testUser;
+    address otherUser;
 
+    // Events
     event JsonStored(address indexed owner, bytes32 indexed slot);
     event JsonCleared(address indexed owner, bytes32 indexed slot);
     event SlotsPrepaid(address indexed owner, uint64 numSlots);
 
     function setUp() public {
         testUser = address(this);
+        otherUser = address(0x1);
     }
 
+    // Test Prepaid Slots Functions
     function testInitialPrepaidSlots() public {
         assertEq(store.prepaid(testUser), 0);
+        assertEq(store.prepaid(), 0); // Test the msg.sender version
     }
 
     function testPrepaySlots() public {
-        // Expect event emission
         vm.expectEmit(true, false, false, true);
-        emit SlotsPrepaid(testUser, 1);
+        emit SlotsPrepaid(testUser, 5);
 
-        store.prepaySlots(testUser, 1);
-        assertEq(store.prepaid(testUser), 1);
+        store.prepaySlots(testUser, 5);
+        assertEq(store.prepaid(testUser), 5);
     }
 
-    function testSetJsonWithoutPrepaidSlots() public {
+    function testPrepayMultipleSlots() public {
+        store.prepaySlots(testUser, 3);
+        store.prepaySlots(testUser, 2);
+        assertEq(store.prepaid(testUser), 5);
+    }
+
+    // Test Set Function
+    function testSetWithoutPrepaidSlots() public {
         vm.expectRevert(abi.encodeWithSignature("JsonStore__InsufficientPrepaidSlots()"));
         store.set(TEST_SLOT, TEST_JSON);
     }
 
-    function testSetJsonWithInvalidJson() public {
-        // First prepay slots
+    function testSetWithInvalidJson() public {
         store.prepaySlots(testUser, 1);
 
         vm.expectRevert(abi.encodeWithSignature("JsonStore__InvalidJson()"));
         store.set(TEST_SLOT, INVALID_JSON);
     }
 
-    function testSetAndGetJson() public {
-        // First prepay slots
+    function testSetWithEmptyJson() public {
         store.prepaySlots(testUser, 1);
 
-        // Set JSON
+        vm.expectRevert(abi.encodeWithSignature("JsonStore__EmptyJson()"));
+        store.set(TEST_SLOT, EMPTY_JSON);
+    }
+
+    function testSetValidJson() public {
+        store.prepaySlots(testUser, 1);
+
         vm.expectEmit(true, true, false, true);
         emit JsonStored(testUser, TEST_SLOT);
 
         assertTrue(store.set(TEST_SLOT, TEST_JSON));
-
-        // Verify storage
-        assertTrue(store.exists(testUser, TEST_SLOT));
-        assertEq(store.get(testUser, TEST_SLOT), TEST_JSON);
-
-        // Verify prepaid slots were decremented
         assertEq(store.prepaid(testUser), 0);
     }
 
-    function testUriGeneration() public {
-        // First prepay slots
+    function testSetExistingSlot() public {
         store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
 
-        // Get URI
-        string memory dataUri = store.uri(testUser, TEST_SLOT);
+        vm.expectRevert(abi.encodeWithSignature("JsonStore__SlotAlreadyExists()"));
+        store.set(TEST_SLOT, TEST_JSON);
+    }
 
-        // Verify URI format starts with data:application/json;base64,
-        assertTrue(bytes(dataUri).length > 29);
-        assertEq(substring(dataUri, 0, 29), "data:application/json;base64,");
+    // Test Exists Functions
+    function testExistsWithOwner() public {
+        store.prepaySlots(testUser, 1);
+        store.set(TEST_SLOT, TEST_JSON);
+
+        assertTrue(store.exists(testUser, TEST_SLOT));
+        assertFalse(store.exists(otherUser, TEST_SLOT));
+    }
+
+    function testExistsWithoutOwner() public {
+        store.prepaySlots(testUser, 1);
+        store.set(TEST_SLOT, TEST_JSON);
+
+        assertTrue(store.exists(TEST_SLOT));
+    }
+
+    // Test Get Functions
+    function testGetWithOwner() public {
+        store.prepaySlots(testUser, 1);
+        store.set(TEST_SLOT, TEST_JSON);
+
+        assertEq(store.get(testUser, TEST_SLOT), TEST_JSON);
+    }
+
+    function testGetWithoutOwner() public {
+        store.prepaySlots(testUser, 1);
+        store.set(TEST_SLOT, TEST_JSON);
+
+        assertEq(store.get(TEST_SLOT), TEST_JSON);
     }
 
     function testGetNonexistentSlot() public {
         vm.expectRevert(abi.encodeWithSignature("JsonStore__SlotDoesNotExist()"));
+        store.get(TEST_SLOT);
+
+        vm.expectRevert(abi.encodeWithSignature("JsonStore__SlotDoesNotExist()"));
         store.get(testUser, TEST_SLOT);
     }
 
-    function testClearJson() public {
-        // First prepay slots and set JSON
+    // Test URI Functions
+    function testUriWithOwner() public {
         store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
 
-        // Expect event emission
+        string memory uri = store.uri(testUser, TEST_SLOT);
+        assertEq(substring(uri, 0, 29), "data:application/json;base64,");
+    }
+
+    function testUriWithoutOwner() public {
+        store.prepaySlots(testUser, 1);
+        store.set(TEST_SLOT, TEST_JSON);
+
+        string memory uri = store.uri(TEST_SLOT);
+        assertEq(substring(uri, 0, 29), "data:application/json;base64,");
+    }
+
+    function testUriNonexistentSlot() public {
+        vm.expectRevert(abi.encodeWithSignature("JsonStore__SlotDoesNotExist()"));
+        store.uri(TEST_SLOT);
+
+        vm.expectRevert(abi.encodeWithSignature("JsonStore__SlotDoesNotExist()"));
+        store.uri(testUser, TEST_SLOT);
+    }
+
+    // Test Clear Function
+    function testClearExistingSlot() public {
+        store.prepaySlots(testUser, 1);
+        store.set(TEST_SLOT, TEST_JSON);
+
         vm.expectEmit(true, true, false, true);
         emit JsonCleared(testUser, TEST_SLOT);
 
-        // Clear JSON
         assertTrue(store.clear(TEST_SLOT));
-
-        // Verify slot is cleared
-        assertFalse(store.exists(testUser, TEST_SLOT));
+        assertFalse(store.exists(TEST_SLOT));
     }
 
-    function testUnauthorizedAccess() public {
-        // First prepay slots and set JSON as testUser
+    function testClearNonexistentSlot() public {
+        vm.expectRevert(abi.encodeWithSignature("JsonStore__SlotDoesNotExist()"));
+        store.clear(TEST_SLOT);
+    }
+
+    function testClearUnauthorized() public {
         store.prepaySlots(testUser, 1);
         store.set(TEST_SLOT, TEST_JSON);
 
-        // Try to access as different user
-        address unauthorized = address(0x1);
-        vm.startPrank(unauthorized);
-
-        // Verify unauthorized access fails
-        assertFalse(store.exists(unauthorized, TEST_SLOT));
-
+        vm.startPrank(otherUser);
         vm.expectRevert(abi.encodeWithSignature("JsonStore__SlotDoesNotExist()"));
-        store.get(unauthorized, TEST_SLOT);
-
+        store.clear(TEST_SLOT);
         vm.stopPrank();
-    }
-
-    function testPrecompileStoreCalls() public {
-        // Test the precompile store methods
-        JsonStore.exists(TEST_SLOT);
-        JsonStore.uri(TEST_SLOT);
-        JsonStore.get(TEST_SLOT);
     }
 
     // Helper function
@@ -136,52 +187,5 @@ contract JsonStoreTest is Test {
             result[i - startIndex] = strBytes[i];
         }
         return string(result);
-    }
-
-    function testAddPrepaidSlots() public {
-        // Initial check
-        assertEq(store.prepaid(testUser), 0);
-
-        // Add prepaid slots
-        vm.expectEmit(true, false, false, true);
-        emit SlotsPrepaid(testUser, 2);
-        // store.addPrepaidSlots(testUser, 2);
-
-        // Verify slots were added
-        assertEq(store.prepaid(testUser), 2);
-    }
-
-    function testMultipleSlotOperations() public {
-        // Add multiple prepaid slots
-        // store.addPrepaidSlots(testUser, 3);
-        assertEq(store.prepaid(testUser), 3);
-
-        // Use slots multiple times
-        store.set(TEST_SLOT, TEST_JSON);
-        assertEq(store.prepaid(testUser), 2);
-
-        bytes32 secondSlot = bytes32(uint256(2));
-        store.set(secondSlot, TEST_JSON);
-        assertEq(store.prepaid(testUser), 1);
-
-        // Verify both slots exist
-        assertTrue(store.exists(testUser, TEST_SLOT));
-        assertTrue(store.exists(testUser, secondSlot));
-
-        // Clear first slot
-        store.clear(TEST_SLOT);
-        assertFalse(store.exists(testUser, TEST_SLOT));
-        assertTrue(store.exists(testUser, secondSlot));
-    }
-
-    function testStorageConsistency() public {
-        // store.addPrepaidSlots(testUser, 1);
-        store.set(TEST_SLOT, TEST_JSON);
-
-        // Check data consistency
-        JsonStore.JsonData memory data = store.jsonStorage[TEST_SLOT];
-        assertEq(data.owner, testUser);
-        assertTrue(data.exists);
-        assertEq(data.jsonBlob, TEST_JSON);
     }
 }
