@@ -56,13 +56,13 @@ contract JsonStoreTest is Test {
         assertEq(store.prepaid(otherUser), 5);
     }
 
-    // function testSetWithoutPrepaidSlots() public {
-    //     vm.startPrank(otherUser); // Switch to unpaid user
-    //     // vm.expectRevert();
-    //     // vm.expectRevert(JsonStore.JsonStore__InsufficientPrepaidSlots.selector);
-    //     store.set(TEST_SLOT, TEST_JSON);
-    //     vm.stopPrank();
-    // }
+    function testSetWithoutPrepaidSlots() public {
+        vm.startPrank(otherUser); // Switch to unpaid user
+        // vm.expectRevert();
+        // vm.expectRevert(JsonStore.JsonStore__InsufficientPrepaidSlots.selector);
+        store.set(TEST_SLOT, TEST_JSON);
+        vm.stopPrank();
+    }
 
     // function testSetWithInvalidJson() public {
     //     vm.startPrank(testUser); // Switch to unpaid user
