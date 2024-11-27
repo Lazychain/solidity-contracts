@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.24;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -38,6 +38,12 @@ contract NFTLottery {
     error CampaignOver();
     error InsufficientFundsSent();
     error InvalidThreshold();
+    error GuessValueOutOfRange();
+    error NicknameTooLong();
+    error InvalidCharactersInNickname();
+    error NicknameAlreadySet();
+    error NoNicknameSet();
+    error TooFewNFTs();
 
     string private constant VERSION = "1.00"; // Private as to not clutter the ABI
 
@@ -49,9 +55,6 @@ contract NFTLottery {
         uint256 win_count; // How many times the user have win
     }
 
-    /// @notice List of all users
-    UserNameSpace[] public users;
-    mapping(address => string) public playerNames; //names corresponding to addresses
     mapping(address => UserNameSpace) public userDetails; //other details of users
 
     /// @notice Fee in TIA
@@ -77,6 +80,10 @@ contract NFTLottery {
     /// @notice value that represents the win rate % in a modulo way, default 5% = 20.
     uint8 threshold = 20;
 
+    uint256 public nextNftId=0; // Pointer to the next NFT ID
+    uint256 public maxNfts;   // Maximum number of NFTs minted
+
+
     /// @notice holds the best users based on their win count
     // TODO: what if two guys have same win count? we should give priority to the
     //       one with less draws as he has a better winning rate
@@ -93,8 +100,9 @@ contract NFTLottery {
      * @param _nftContract Address of the contract maintaining the NFTs
      */
     constructor(address _decrypter, uint256 _fee, uint8 _threshold, address _fairyringContract,
-        address _nftContract) {
+        address _nftContract, uint256 _maxNfts) {
         if (_threshold >= 100) revert InvalidThreshold();
+        if (_maxNfts < 1) revert TooFewNFTs();
 
         owner = msg.sender;
         decrypterContract = IDecrypter(_decrypter);
@@ -103,6 +111,7 @@ contract NFTLottery {
         threshold = _threshold;
         fairyringContract = IFairyringContract(_fairyringContract);
         nftContract = IERC721(_nftContract);
+        maxNfts = _maxNfts;
 
         emit LotteryInitialized(_decrypter, _fee);
     }
@@ -141,33 +150,44 @@ contract NFTLottery {
     function draw(uint256 userGuess) public payable returns (bool) {
         if (campaignFinalized) revert CampaignOver();
         if (msg.value < fee) revert InsufficientFundsSent();
-
-        uint256 height = block.number;
-        uint256 randomness = fairyringContract.getRandomnessByHeight(height);
-
-        uint256 randomNumber = randomness % 100;
-        uint256 combinedResult = (userGuess + randomNumber) % 100;
-        bool isWinner = combinedResult <= threshold;
-        
+        if (userGuess > 100) revert GuessValueOutOfRange();
+               
         UserNameSpace storage user = userDetails[msg.sender];
         if (user.userAddress == address(0)) {
             user.userAddress = msg.sender;
         }
+        if (bytes(user.nickName).length == 0) {
+            revert NoNicknameSet();
+        }
+
+        (bytes32 randomSeed, ) = fairyringContract.latestRandomness();
+        uint256 randomValue = uint256(randomSeed);
+
+        uint256 randomNumber = randomValue % threshold;
+        bool isWinner = (userGuess%20) == randomNumber;
+ 
         user.draws_count++;
         totalDraws++;
 
         if (isWinner) {
             // Select and transfer a random NFT
-            uint256 nftId = uint256(randomness) % nftContract.balanceOf(address(this));
+            uint256 nftId = nextNftId;
             nftContract.transferFrom(address(this), msg.sender, nftId);
             
             user.win_count++;
+            nextNftId++;
             //a potential top10, so insert him
             leaderboard.insert(msg.sender, user.win_count);
+
+            if (nextNftId >= maxNfts) {
+                // End the campaign if all NFTs are used
+                finalizeCampaign();
+            }
         }
 
         emit LotteryDrawn(msg.sender, isWinner, totalDraws);
         userDetails[msg.sender] = user;
+
         return isWinner;
     }
 
@@ -175,8 +195,19 @@ contract NFTLottery {
     // EXECUTE:ANYONE:setPlayerName(name: string) -> Result((), error)
     //  use info.address and set name in a Map{address: name}
     function setPlayerName(string memory name) public {
-        playerNames[msg.sender] = name;
+
+        if(bytes(name).length > 7){
+            revert NicknameTooLong();
+        }
+        if(!isValidNickname(name)){
+            revert InvalidCharactersInNickname();
+        }
+
         UserNameSpace storage userSpace = userDetails[msg.sender];
+        // Check if the user already has a nickname
+        if (bytes(userSpace.nickName).length > 0) {
+            revert NicknameAlreadySet();
+        }
         userSpace.nickName = name;
         userDetails[msg.sender] = userSpace;
         emit PlayerNameSet(msg.sender, name);
@@ -189,7 +220,8 @@ contract NFTLottery {
 
     // QUERY:ANYONE:getPlayerName() -> Result(name: string)
     function getPlayerName(address player) public view returns (string memory) {
-        return playerNames[player];
+        UserNameSpace storage userSpace = userDetails[player];
+        return userSpace.nickName;
     }    
 
     function dashboard() public returns (UserNameSpace[10] memory) {
@@ -207,6 +239,29 @@ contract NFTLottery {
         }
 
         return top10winners;
+    }
+
+    function isValidNickname(string memory name) internal pure returns (bool) {
+        bytes memory nameBytes = bytes(name);
+
+        for (uint256 i = 0; i < nameBytes.length; i++) {
+            bytes1 char = nameBytes[i];
+
+            // Check if the character is a valid UTF-8 character
+            if (!(char >= 0x20 && char <= 0x7E)) { // Basic printable ASCII range
+                return false;
+            }
+
+            // Allow only letters, digits, '.', and '-'
+            if (!(char >= 'a' && char <= 'z') &&
+                !(char >= 'A' && char <= 'Z') &&
+                !(char >= '0' && char <= '9') &&
+                char != '.' && char != '-') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
