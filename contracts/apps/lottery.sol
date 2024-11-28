@@ -172,6 +172,9 @@ contract NFTLottery {
             user.draws_count++;
             emit LotteryDrawn(msg.sender, false, user.draws_count);
             return false;
+        } else {
+            // update user height
+            user.height = block.number;
         }
 
         (bytes32 randomSeed, ) = fairyringContract.latestRandomness();
