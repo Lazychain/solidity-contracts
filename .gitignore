@@ -23,3 +23,7 @@ types
 .pnp.cjs
 .pnp.loader.mjs
 .yarn/
+
+# bun && javascript dep
+bun.lockb
+package-lock.json
