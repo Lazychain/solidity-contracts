@@ -11,10 +11,7 @@ interface IFairyringContract {
 }
 
 interface IDecrypter {
-    function decrypt(
-        uint8[] memory c,
-        uint8[] memory skbytes
-    ) external returns (uint8[] memory);
+    function decrypt(uint8[] memory c, uint8[] memory skbytes) external returns (uint8[] memory);
 }
 
 /**
@@ -41,18 +38,24 @@ contract NFTLottery {
     error GuessValueOutOfRange();
     error NicknameTooLong();
     error InvalidCharactersInNickname();
-    error NicknameAlreadySet();
+    //error NicknameAlreadySet();
     error NoNicknameSet();
     error TooFewNFTs();
 
+    /**
+     * @dev There's no code at `target` (it is not a contract).
+     */
+    error AddressEmptyCode(address target);
+
     string private constant VERSION = "1.00"; // Private as to not clutter the ABI
+    uint8 private constant NICKNAME_MAX_LENGHT = 7;
 
     /// @notice Represents a user name space entry and data
     struct UserNameSpace {
-        address userAddress; // User address
         string nickName; // Nick name of the user
         uint256 draws_count; // How many times the user have draw
         uint256 win_count; // How many times the user have win
+        uint256 height;
     }
 
     mapping(address => UserNameSpace) public userDetails; //other details of users
@@ -80,9 +83,8 @@ contract NFTLottery {
     /// @notice value that represents the win rate % in a modulo way, default 5% = 20.
     uint8 threshold = 20;
 
-    uint256 public nextNftId=0; // Pointer to the next NFT ID
-    uint256 public maxNfts;   // Maximum number of NFTs minted
-
+    uint256 public nextNftId = 0; // Pointer to the next NFT ID
+    uint256 public maxNfts; // Maximum number of NFTs minted
 
     /// @notice holds the best users based on their win count
     // TODO: what if two guys have same win count? we should give priority to the
@@ -99,8 +101,14 @@ contract NFTLottery {
      * @param _fairyringContract Address of the fairy ring contract
      * @param _nftContract Address of the contract maintaining the NFTs
      */
-    constructor(address _decrypter, uint256 _fee, uint8 _threshold, address _fairyringContract,
-        address _nftContract, uint256 _maxNfts) {
+    constructor(
+        address _decrypter,
+        uint256 _fee,
+        uint8 _threshold,
+        address _fairyringContract,
+        address _nftContract,
+        uint256 _maxNfts
+    ) {
         if (_threshold >= 100) revert InvalidThreshold();
         if (_maxNfts < 1) revert TooFewNFTs();
 
@@ -148,24 +156,30 @@ contract NFTLottery {
     //      { result: false, total_draws }
     //      Emit Lose Event
     function draw(uint256 userGuess) public payable returns (bool) {
+        // Check if a smart contract calling -> 0 if EOA, >0 if smart contract
+        if (msg.sender.code.length > 0) {
+            revert AddressEmptyCode(msg.sender);
+        }
         if (campaignFinalized) revert CampaignOver();
         if (msg.value < fee) revert InsufficientFundsSent();
         if (userGuess > 100) revert GuessValueOutOfRange();
-               
+
         UserNameSpace storage user = userDetails[msg.sender];
-        if (user.userAddress == address(0)) {
-            user.userAddress = msg.sender;
-        }
-        if (bytes(user.nickName).length == 0) {
-            revert NoNicknameSet();
+
+        // Only one draw call per height, to avoid bots calling
+        // We dont thrown an error, we want the bots to spend as much as possible
+        if (user.height >= block.number) {
+            user.draws_count++;
+            emit LotteryDrawn(msg.sender, false, user.draws_count);
+            return false;
         }
 
         (bytes32 randomSeed, ) = fairyringContract.latestRandomness();
         uint256 randomValue = uint256(randomSeed);
 
         uint256 randomNumber = randomValue % threshold;
-        bool isWinner = (userGuess%20) == randomNumber;
- 
+        bool isWinner = (userGuess % threshold) == randomNumber;
+
         user.draws_count++;
         totalDraws++;
 
@@ -173,14 +187,15 @@ contract NFTLottery {
             // Select and transfer a random NFT
             uint256 nftId = nextNftId;
             nftContract.transferFrom(address(this), msg.sender, nftId);
-            
+
             user.win_count++;
             nextNftId++;
-            //a potential top10, so insert him
+            //a potential top10, so insert him (mutation)
             leaderboard.insert(msg.sender, user.win_count);
 
             if (nextNftId >= maxNfts) {
                 // End the campaign if all NFTs are used
+                // TODO: here a user addr can call this? Make a test.
                 finalizeCampaign();
             }
         }
@@ -191,23 +206,19 @@ contract NFTLottery {
         return isWinner;
     }
 
-
     // EXECUTE:ANYONE:setPlayerName(name: string) -> Result((), error)
     //  use info.address and set name in a Map{address: name}
     function setPlayerName(string memory name) public {
-
-        if(bytes(name).length > 7){
-            revert NicknameTooLong();
-        }
-        if(!isValidNickname(name)){
-            revert InvalidCharactersInNickname();
-        }
+        // sanitty check
+        isValidNickname(name);
 
         UserNameSpace storage userSpace = userDetails[msg.sender];
-        // Check if the user already has a nickname
-        if (bytes(userSpace.nickName).length > 0) {
-            revert NicknameAlreadySet();
-        }
+        // lets allow users to change its nicknames
+
+        // // Check if the user already has a nickname
+        // if (bytes(userSpace.nickName).length > 0) {
+        //     revert NicknameAlreadySet();
+        // }
         userSpace.nickName = name;
         userDetails[msg.sender] = userSpace;
         emit PlayerNameSet(msg.sender, name);
@@ -222,48 +233,65 @@ contract NFTLottery {
     function getPlayerName(address player) public view returns (string memory) {
         UserNameSpace storage userSpace = userDetails[player];
         return userSpace.nickName;
-    }    
+    }
 
     function dashboard() public view returns (UserNameSpace[10] memory) {
         return getTop10Winners();
     }
 
+    // TODO: move this code inside PriorityQueue as a Query top `n` registries.
     function getTop10Winners() private view returns (UserNameSpace[10] memory) {
         UserNameSpace[10] memory top10winners;
         // Extract the top 10 winners from the priority queue
-        PriorityQueue.Queue memory tempQueue = leaderboard.copy();
+        // PriorityQueue.Queue memory tempQueue = leaderboard.copy();
         // or use the assembly copy if there is significant gas
-        for (uint256 i = 0; i < 10 && tempQueue.heap.length > 0; i++) {
-            address winnerAddress = tempQueue.heap[i].value;
-
-            UserNameSpace storage winner = userDetails[winnerAddress];
-            top10winners[i] = winner; // Add the winner to the result array
+        // Since we dont mutate the leaderboard, just get values, we dont need to copy().
+        for (uint256 i = 0; i < 10 && leaderboard.heap.length > 0; i++) {
+            address winnerAddress = leaderboard.heap[i].value;
+            if (winnerAddress != address(0)) {
+                UserNameSpace storage winner = userDetails[winnerAddress];
+                top10winners[i] = winner; // Add the winner to the result array
+            } else {
+                // case where no more address in the priority queue
+                // maybe we could this directly on the PriorityQueue struct.
+                break;
+            }
         }
 
         return top10winners;
     }
 
-    function isValidNickname(string memory name) internal pure returns (bool) {
+    function isValidNickname(string memory name) internal pure {
         bytes memory nameBytes = bytes(name);
+
+        if (bytes(nameBytes).length == 0) {
+            revert NoNicknameSet();
+        }
+
+        if (nameBytes.length > NICKNAME_MAX_LENGHT) {
+            revert NicknameTooLong();
+        }
 
         for (uint256 i = 0; i < nameBytes.length; i++) {
             bytes1 char = nameBytes[i];
 
             // Check if the character is a valid UTF-8 character
-            if (!(char >= 0x20 && char <= 0x7E)) { // Basic printable ASCII range
-                return false;
+            if (!(char >= 0x20 && char <= 0x7E)) {
+                // Basic printable ASCII range
+                revert InvalidCharactersInNickname();
             }
 
             // Allow only letters, digits, '.', and '-'
-            if (!(char >= 'a' && char <= 'z') &&
-                !(char >= 'A' && char <= 'Z') &&
-                !(char >= '0' && char <= '9') &&
-                char != '.' && char != '-') {
-                return false;
+            if (
+                !(char >= "a" && char <= "z") &&
+                !(char >= "A" && char <= "Z") &&
+                !(char >= "0" && char <= "9") &&
+                char != "." &&
+                char != "-"
+            ) {
+                revert InvalidCharactersInNickname();
             }
         }
-
-        return true;
     }
 
     /**
