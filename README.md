@@ -54,8 +54,10 @@ Compiler run successful!
 
 ## Tools
 
-[Forge](https://book.getfoundry.sh/getting-started/installation) and [Hardhat](https://hardhat.org/hardhat-runner/docs/getting-started#quick-start).
-[bun](https://bun.sh/) for typescript
+- [Forge](https://book.getfoundry.sh/getting-started/installation) and [Hardhat](https://hardhat.org/hardhat-runner/docs/getting-started#quick-start).
+- [bun](https://bun.sh/) for typescript
+- [slither](https://github.com/crytic/slither) for static code analysis.
+- [solhint](https://protofire.github.io/solhint/docs/rules.html#best-practise-rules)
 
 ## Foundry Testing
 

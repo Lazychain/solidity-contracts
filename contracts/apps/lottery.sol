@@ -79,7 +79,7 @@ contract NFTLottery {
     bool public campaignFinalized;
 
     /// @notice value that represents the win rate % in a modulo way, default 5% = 20.
-    uint8 private _threshold = 20;
+    uint8 public threshold = 20;
 
     uint256 public nextNftId = 0; // Pointer to the next NFT ID
     uint256 public maxNfts; // Maximum number of NFTs minted
@@ -114,7 +114,7 @@ contract NFTLottery {
         decrypterContract = IDecrypter(_decrypter);
         fee = _fee;
         campaignFinalized = true;
-        _threshold = _threshold;
+        threshold = _threshold;
         fairyringContract = IFairyringContract(_fairyringContract);
         nftContract = IERC721(_nftContract);
         maxNfts = _maxNfts;
@@ -169,7 +169,7 @@ contract NFTLottery {
         (bytes32 randomSeed, ) = fairyringContract.latestRandomness();
         uint256 randomValue = uint256(randomSeed);
 
-        uint256 randomNumber = randomValue % _threshold;
+        uint256 randomNumber = randomValue % threshold;
         bool isWinner = (userGuess % 20) == randomNumber;
 
         ++user.drawsCount;
@@ -237,8 +237,8 @@ contract NFTLottery {
         // Extract the top 10 winners from the priority queue
         PriorityQueue.Queue memory tempQueue = _leaderboard.copy();
         // or use the assembly copy if there is significant gas
-        lenght = tempQueue.heap.length;
-        for (uint256 i = 0; i < 10 && length > 0; ++i) {
+        uint256 lenght = tempQueue.heap.length;
+        for (uint256 i = 0; i < 10 && lenght > 0; ++i) {
             address winnerAddress = tempQueue.heap[i].value;
 
             UserNameSpace storage winner = userDetails[winnerAddress];
@@ -250,8 +250,8 @@ contract NFTLottery {
 
     function _isValidNickname(string memory name) internal pure returns (bool) {
         bytes memory nameBytes = bytes(name);
-        lenght = nameBytes.length;
-        for (uint256 i = 0; i < length; ++i) {
+        uint256 lenght = nameBytes.length;
+        for (uint256 i = 0; i < lenght; ++i) {
             bytes1 char = nameBytes[i];
 
             // Check if the character is a valid UTF-8 character
