@@ -20,6 +20,7 @@ extra_output = [
 ]
 bytecode_hash = 'ipfs'
 deny_warnings = true
+fail_on_revert = true
 
 # Optimizer
 optimizer_runs = 200
@@ -40,7 +41,7 @@ runs = 1000
 
 [invariant]
 runs = 1000
-depth = 500
+depth = 128
 
 # Format
 [fmt]
