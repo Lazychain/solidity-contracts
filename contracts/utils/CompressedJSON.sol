@@ -6,6 +6,7 @@ import { JsonUtil } from "./JsonUtil.sol";
 
 library CompressedJSON {
     using Compress for bytes;
+    error InvalidJSON();
 
     /**
      * @dev Unwraps the compressed JSON data.
@@ -25,7 +26,7 @@ library CompressedJSON {
      * @return The compressed JSON data.
      */
     function wrap(string memory _jsonBlob) internal pure returns (bytes memory) {
-        require(JsonUtil.validate(_jsonBlob), "Invalid JSON");
+        if (JsonUtil.validate(_jsonBlob)) revert InvalidJSON();
         string memory compacted = JsonUtil.compact(_jsonBlob);
         return bytes(compacted).compress();
     }

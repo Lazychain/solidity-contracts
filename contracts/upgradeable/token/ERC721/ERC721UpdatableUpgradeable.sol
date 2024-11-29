@@ -15,8 +15,10 @@ abstract contract ERC721UpdatableUpgradeable is
     UpdatableTokenMetadataUpgradeable
 {
     // solhint-disable func-name-mixedcase
+    // solhint-disable no-empty-blocks
     function __ERC721Updatable_init() internal onlyInitializing {}
 
+    // solhint-disable no-empty-blocks
     function __ERC721Updatable_init_unchained() internal onlyInitializing {}
     // solhint-enable func-name-mixedcase
 

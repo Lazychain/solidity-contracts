@@ -111,8 +111,8 @@ abstract contract TokenMetadata is ITokenMetadata {
         values[3] = _data.externalURL;
         values[4] = _data.animationURL;
         metadata = JsonUtil.set(metadata, paths, values);
-
-        for (uint8 i = 0; i < _data.attributes.length; i++) {
+        uint256 length = _data.attributes.length;
+        for (uint8 i = 0; i < length; ++i) {
             metadata = JsonUtil.setRaw(metadata, "attributes.-1", _tokenAttributeToJson(_data.attributes[i]));
         }
 

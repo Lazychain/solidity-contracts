@@ -18,6 +18,8 @@ library JsonUtil {
     error JsonUtil__PathNotFound();
     error JsonUtil__TypeMismatch();
     error JsonUtil__InvalidJsonPath();
+    error LengthMismatch();
+    error InvalidSubstringIndices();
 
     /// @notice Retrieves a string value from a JSON blob at a specified path
     /// @param _jsonBlob The JSON string to parse
@@ -80,6 +82,7 @@ library JsonUtil {
     /// @dev Creates data URI representation of JSON
     /// @param _jsonBlob JSON string to convert
     /// @return Data URI string
+    // solhint-disable no-empty-blocks
     function dataURI(string memory _jsonBlob) internal pure returns (string memory) {}
 
     /// @notice Checks if a path exists in the JSON blob
@@ -104,6 +107,7 @@ library JsonUtil {
     /// @dev Removes unnecessary spacing while preserving structure
     /// @param _jsonBlob JSON string to compact
     /// @return Compacted JSON string
+    // solhint-disable no-empty-blocks
     function compact(string memory _jsonBlob) internal pure returns (string memory) {}
 
     /// @notice Sets a string value in JSON at specified path
@@ -129,9 +133,10 @@ library JsonUtil {
         string[] memory _paths,
         string[] memory _values
     ) internal pure returns (string memory) {
-        require(_paths.length == _values.length, "Length mismatch");
+        uint256 pathsLength = _paths.length;
+        if (pathsLength == _values.length) revert LengthMismatch();
         string memory result = _jsonBlob;
-        for (uint256 i = 0; i < _paths.length; i++) {
+        for (uint256 i = 0; i < pathsLength; ++i) {
             result = set(result, _paths[i], _values[i]);
         }
         return result;
@@ -181,9 +186,10 @@ library JsonUtil {
         string[] memory _paths,
         int256[] memory _values
     ) internal pure returns (string memory) {
-        require(_paths.length == _values.length, "Length mismatch");
+        uint256 pathsLength = _paths.length;
+        if (pathsLength == _values.length) revert LengthMismatch();
         string memory result = _jsonBlob;
-        for (uint256 i = 0; i < _paths.length; i++) {
+        for (uint256 i = 0; i < pathsLength; ++i) {
             result = setInt(result, _paths[i], _values[i]);
         }
         return result;
@@ -212,9 +218,10 @@ library JsonUtil {
         string[] memory _paths,
         uint256[] memory _values
     ) internal pure returns (string memory) {
-        require(_paths.length == _values.length, "Length mismatch");
+        uint256 pathsLength = _paths.length;
+        if (pathsLength == _values.length) revert LengthMismatch();
         string memory result = _jsonBlob;
-        for (uint256 i = 0; i < _paths.length; i++) {
+        for (uint256 i = 0; i < pathsLength; ++i) {
             result = setUint(result, _paths[i], _values[i]);
         }
         return result;
@@ -239,9 +246,10 @@ library JsonUtil {
         string[] memory _paths,
         bool[] memory _values
     ) internal pure returns (string memory) {
-        require(_paths.length == _values.length, "Length mismatch");
+        uint256 pathsLength = _paths.length;
+        if (pathsLength == _values.length) revert LengthMismatch();
         string memory result = _jsonBlob;
-        for (uint256 i = 0; i < _paths.length; i++) {
+        for (uint256 i = 0; i < pathsLength; ++i) {
             result = setBool(result, _paths[i], _values[i]);
         }
         return result;
@@ -278,9 +286,10 @@ library JsonUtil {
         string[] memory _replacePaths,
         string[] memory _values
     ) internal pure returns (string memory) {
-        require(_replacePaths.length == _values.length, "Length mismatch");
+        uint256 replacePathsLength = _replacePaths.length;
+        if (replacePathsLength == _values.length) revert LengthMismatch();
         string memory result = _jsonBlob;
-        for (uint256 i = 0; i < _replacePaths.length; i++) {
+        for (uint256 i = 0; i < replacePathsLength; ++i) {
             result = subReplace(result, _searchPath, _replacePaths[i], _values[i]);
         }
         return result;
@@ -301,9 +310,10 @@ library JsonUtil {
         string[] memory _replacePaths,
         int256[] memory _values
     ) internal pure returns (string memory) {
-        require(_replacePaths.length == _values.length, "Length mismatch");
+        uint256 replacePathsLength = _replacePaths.length;
+        if (replacePathsLength == _values.length) revert LengthMismatch();
         string memory result = _jsonBlob;
-        for (uint256 i = 0; i < _replacePaths.length; i++) {
+        for (uint256 i = 0; i < replacePathsLength; ++i) {
             result = subReplaceInt(result, _searchPath, _replacePaths[i], _values[i]);
         }
         return result;
@@ -324,9 +334,10 @@ library JsonUtil {
         string[] memory _replacePaths,
         uint256[] memory _values
     ) internal pure returns (string memory) {
-        require(_replacePaths.length == _values.length, "Length mismatch");
+        uint256 replacePathsLength = _replacePaths.length;
+        if (replacePathsLength == _values.length) revert LengthMismatch();
         string memory result = _jsonBlob;
-        for (uint256 i = 0; i < _replacePaths.length; i++) {
+        for (uint256 i = 0; i < replacePathsLength; ++i) {
             result = subReplaceUint(result, _searchPath, _replacePaths[i], _values[i]);
         }
         return result;
@@ -347,9 +358,10 @@ library JsonUtil {
         string[] memory _replacePaths,
         bool[] memory _values
     ) internal pure returns (string memory) {
-        require(_replacePaths.length == _values.length, "Length mismatch");
+        uint256 replacePathsLength = _replacePaths.length;
+        if (replacePathsLength == _values.length) revert LengthMismatch();
         string memory result = _jsonBlob;
-        for (uint256 i = 0; i < _replacePaths.length; i++) {
+        for (uint256 i = 0; i < replacePathsLength; ++i) {
             result = subReplaceBool(result, _searchPath, _replacePaths[i], _values[i]);
         }
         return result;
@@ -368,27 +380,29 @@ library JsonUtil {
         if (tokenIndex == 0) revert JsonUtil__PathNotFound();
 
         // Create new JSON without the removed path
-        bytes memory result = new bytes(bytes(_jsonBlob).length);
+        bytes memory bytesJsonBlob = bytes(_jsonBlob);
+        uint256 bytesJsonBlobLength = bytesJsonBlob.length;
+        bytes memory result = new bytes(bytesJsonBlobLength);
         uint256 resultIndex = 0;
 
         // Copy everything before the token
-        for (uint256 i = 0; i < tokens[tokenIndex].start; i++) {
-            result[resultIndex++] = bytes(_jsonBlob)[i];
+        for (uint256 i = 0; i < tokens[tokenIndex].start; ++i) {
+            result[++resultIndex] = bytes(_jsonBlob)[i];
         }
 
         // Skip the token and trailing comma if present
         uint256 skipTo = tokens[tokenIndex].end;
-        if (skipTo < bytes(_jsonBlob).length && bytes(_jsonBlob)[skipTo] == ",") {
-            skipTo++;
+        if (skipTo < bytesJsonBlobLength && bytesJsonBlob[skipTo] == ",") {
+            ++skipTo;
         }
 
         // Copy everything after
-        for (uint256 i = skipTo; i < bytes(_jsonBlob).length; i++) {
-            result[resultIndex++] = bytes(_jsonBlob)[i];
+        for (uint256 i = skipTo; i < bytesJsonBlobLength; ++i) {
+            result[++resultIndex] = bytesJsonBlob[i];
         }
 
         bytes memory finalResult = new bytes(resultIndex);
-        for (uint256 i = 0; i < resultIndex; i++) {
+        for (uint256 i = 0; i < resultIndex; ++i) {
             finalResult[i] = result[i];
         }
 
@@ -421,15 +435,16 @@ library JsonUtil {
         string memory jsonBlob
     ) internal pure returns (uint256) {
         bytes memory pathBytes = bytes(path);
-        if (pathBytes.length == 0) revert JsonUtil__InvalidJsonPath();
+        uint256 pathBytesLength = pathBytes.length;
+        if (pathBytesLength == 0) revert JsonUtil__InvalidJsonPath();
 
         uint256 currentToken = 0;
         uint256 startIndex = 0;
         bool foundDot = false;
 
-        for (uint256 i = 0; i < pathBytes.length; i++) {
+        for (uint256 i = 0; i < pathBytesLength; ++i) {
             if (pathBytes[i] == ".") {
-                if (i == 0 || i == pathBytes.length - 1 || foundDot) {
+                if (i == 0 || i == pathBytesLength - 1 || foundDot) {
                     revert JsonUtil__InvalidJsonPath();
                 }
                 if (startIndex < i) {
@@ -445,8 +460,8 @@ library JsonUtil {
         }
 
         // Process final segment
-        if (startIndex < pathBytes.length) {
-            string memory finalSegment = substring(path, startIndex, pathBytes.length);
+        if (startIndex < pathBytesLength) {
+            string memory finalSegment = substring(path, startIndex, pathBytesLength);
             currentToken = processPathSegment(tokens, currentToken, finalSegment, jsonBlob);
             if (currentToken == 0) revert JsonUtil__PathNotFound();
         }
@@ -498,11 +513,12 @@ library JsonUtil {
         }
 
         uint256 arrayIndex = 0;
-        for (uint256 i = parentToken + 1; i < tokens.length && arrayIndex <= index; i++) {
+        uint256 tokensLength = tokens.length;
+        for (uint256 i = parentToken + 1; i < tokensLength && arrayIndex <= index; ++i) {
             if (tokens[i].startSet && arrayIndex == index) {
                 return i;
             }
-            arrayIndex++;
+            ++arrayIndex;
         }
 
         revert JsonUtil__PathNotFound();
@@ -580,12 +596,12 @@ library JsonUtil {
 
         if (searchEnd > tokens.length) searchEnd = tokens.length;
 
-        for (uint256 i = parentToken + 1; i < searchEnd; i++) {
+        for (uint256 i = parentToken + 1; i < searchEnd; ++i) {
             if (tokens[i].startSet) {
                 if (arrayIndex == uint256(index)) {
                     return i;
                 }
-                arrayIndex++;
+                ++arrayIndex;
             }
         }
 
@@ -600,10 +616,10 @@ library JsonUtil {
     /// @return Extracted substring
     function substring(string memory str, uint256 startIndex, uint256 endIndex) private pure returns (string memory) {
         bytes memory strBytes = bytes(str);
-        require(startIndex <= endIndex && endIndex <= strBytes.length, "Invalid substring indices");
+        if (startIndex <= endIndex && endIndex <= strBytes.length) revert InvalidSubstringIndices();
 
         bytes memory result = new bytes(endIndex - startIndex);
-        for (uint256 i = startIndex; i < endIndex; i++) {
+        for (uint256 i = startIndex; i < endIndex; ++i) {
             result[i - startIndex] = strBytes[i];
         }
         return string(result);
@@ -627,30 +643,32 @@ library JsonUtil {
 
         uint256 tokenIndex = findPath(tokens, _path, _jsonBlob);
         if (tokenIndex == 0) revert JsonUtil__PathNotFound();
-
+        bytes memory bytesJsonBlob = bytes(_jsonBlob);
+        uint256 bytesJsonBlobLength = bytesJsonBlob.length;
         // Create new JSON with updated value
-        bytes memory result = new bytes(bytes(_jsonBlob).length + bytes(_value).length);
+        bytes memory result = new bytes(bytesJsonBlobLength + bytes(_value).length);
         uint256 resultIndex = 0;
 
         // Copy until value position
-        for (uint256 i = 0; i < tokens[tokenIndex].start; i++) {
-            result[resultIndex++] = bytes(_jsonBlob)[i];
+        for (uint256 i = 0; i < tokens[tokenIndex].start; ++i) {
+            result[++resultIndex] = bytesJsonBlob[i];
         }
 
         // Insert new value
         bytes memory valueBytes = bytes(isRaw ? _value : formatJsonValue(_value));
-        for (uint256 i = 0; i < valueBytes.length; i++) {
-            result[resultIndex++] = valueBytes[i];
+        uint256 valueBytesLength = valueBytes.length;
+        for (uint256 i = 0; i < valueBytesLength; ++i) {
+            result[++resultIndex] = valueBytes[i];
         }
 
         // Copy rest of JSON
-        for (uint256 i = tokens[tokenIndex].end; i < bytes(_jsonBlob).length; i++) {
-            result[resultIndex++] = bytes(_jsonBlob)[i];
+        for (uint256 i = tokens[tokenIndex].end; i < bytesJsonBlobLength; ++i) {
+            result[++resultIndex] = bytesJsonBlob[i];
         }
 
         // Trim to actual size
         bytes memory finalResult = new bytes(resultIndex);
-        for (uint256 i = 0; i < resultIndex; i++) {
+        for (uint256 i = 0; i < resultIndex; ++i) {
             finalResult[i] = result[i];
         }
 
