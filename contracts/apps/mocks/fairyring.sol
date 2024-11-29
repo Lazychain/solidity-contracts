@@ -38,15 +38,6 @@ contract MockFairyRing {
     uint256 public latestHeight;
     bytes32 public latestRandomness;
     mapping(address => Commitment) public operatorCommitment;
-    mapping(uint256 => bytes32) public heightToRandomness; // What is the use??
-
-    //////////////
-    // MODIFIER //
-    //////////////
-    // modifier onlyOperator() {
-    //     if (msg.sender != operator) revert MockFairyRing__OnlyOperator();
-    //     _;
-    // }
 
     constructor() {
         operator = msg.sender;
@@ -92,7 +83,6 @@ contract MockFairyRing {
         commitment.isRevealed = true;
         latestRandomness = randomValue;
         latestHeight = commitment.blockHeight;
-        heightToRandomness[latestHeight] = randomValue;
 
         emit RandomnessRevealed(msg.sender, randomValue, latestHeight);
     }
@@ -115,10 +105,10 @@ contract MockFairyRing {
 
     /**
      * @notice Gets randomness for a specific block height
-     * @param height The block height to query
+     * @param commiter The commiter to query
      * @return The random value for that height
      */
-    function getRandomnessByHeight(uint256 height) external view returns (uint256) {
-        return uint256(heightToRandomness[height]);
+    function getRandomnessByAddress(address commiter) external view returns (uint256) {
+        return uint256(operatorCommitment[commiter].revealed);
     }
 }
