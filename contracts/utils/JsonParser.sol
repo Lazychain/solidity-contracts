@@ -8,6 +8,8 @@ library JsonParser {
     uint8 constant RETURN_ERROR_PART = 2;
     uint8 constant RETURN_ERROR_NO_MEM = 3;
 
+    /// @notice Enum representing different JSON types.
+    /// @dev Used for classifying JSON elements during parsing.
     enum JsonType {
         UNDEFINED,
         OBJECT,
@@ -16,6 +18,14 @@ library JsonParser {
         PRIMITIVE
     }
 
+    /// @notice Represents a JSON token with metadata.
+    /// @dev Tokens are used to store parsed JSON elements.
+    /// @param jsonType The type of the JSON element.
+    /// @param start The start index of the token in the JSON string.
+    /// @param end The end index of the token in the JSON string.
+    /// @param size The number of child tokens if the token is an object or array.
+    /// @param startSet Indicates whether the start index is set.
+    /// @param endSet Indicates whether the end index is set.
     struct Token {
         JsonType jsonType;
         uint256 start;
@@ -25,17 +35,32 @@ library JsonParser {
         bool endSet;
     }
 
+    /// @notice Represents the parser's current state during JSON parsing.
+    /// @dev Tracks the current position and token allocation status.
+    /// @param pos The current position in the JSON string.
+    /// @param toknext Index of the next token to be allocated.
+    /// @param toksuper Index of the current parent token.
     struct Parser {
         uint256 pos;
         uint256 toknext;
         int256 toksuper;
     }
 
+    /// @notice Initializes the JSON parser and allocates a specified number of tokens.
+    /// @param length The number of tokens to allocate.
+    /// @return parser The initialized parser state.
+    /// @return tokens The array of allocated tokens.
     function init(uint256 length) internal pure returns (Parser memory parser, Token[] memory tokens) {
         parser = Parser(0, 0, -1);
         tokens = new Token[](length);
     }
 
+    /// @notice Allocates a new token for the parser.
+    /// @dev Updates the parser state to reflect the new token allocation.
+    /// @param parser The current parser state.
+    /// @param tokens The array of tokens.
+    /// @return success Whether the token allocation was successful.
+    /// @return token The allocated token.
     function allocateToken(
         Parser memory parser,
         Token[] memory tokens
@@ -49,6 +74,12 @@ library JsonParser {
         return (true, token);
     }
 
+    /// @notice Fills a token with metadata based on the parsed JSON element.
+    /// @param token The token to be filled.
+    /// @param jsonType The type of the JSON element.
+    /// @param start The start index of the token.
+    /// @param end The end index of the token.
+    /// @return token The updated token with metadata.
     function fillToken(
         Token memory token,
         JsonType jsonType,
@@ -64,6 +95,13 @@ library JsonParser {
         return token;
     }
 
+    /// @notice Parses a JSON string value.
+    /// @dev Handles escape characters and validates the string format.
+    /// @param parser The current parser state.
+    /// @param tokens The array of tokens.
+    /// @param s The JSON string to parse.
+    /// @return returnCode The result code indicating success or error.
+    /// @return token The parsed string token.
     function parseString(
         Parser memory parser,
         Token[] memory tokens,
@@ -100,10 +138,19 @@ library JsonParser {
         return (RETURN_ERROR_PART, token);
     }
 
+    /// @notice Checks if a character is a valid escape sequence in a JSON string.
+    /// @param c The character to validate.
+    /// @return True if the character is a valid escape character; false otherwise.
     function isValidEscapeChar(bytes1 c) internal pure returns (bool) {
         return (c == '"' || c == "/" || c == "\\" || c == "f" || c == "r" || c == "n" || c == "b" || c == "t");
     }
 
+    /// @notice Parses a JSON primitive value (e.g., numbers, booleans, null).
+    /// @param parser The current parser state.
+    /// @param tokens The array of tokens.
+    /// @param s The JSON string to parse.
+    /// @return returnCode The result code indicating success or error.
+    /// @return token The parsed primitive token.
     function parsePrimitive(
         Parser memory parser,
         Token[] memory tokens,
@@ -140,6 +187,13 @@ library JsonParser {
         return (RETURN_SUCCESS, token);
     }
 
+    /// @notice Main JSON parsing function.
+    /// @dev Tokenizes a JSON string into an array of Token structs.
+    /// @param json The JSON string to parse
+    /// @param numberElements Maximum number of tokens to allocate
+    /// @return returnCode Success (0) or error code (1-3)
+    /// @return tokens Array of parsed tokens
+    /// @return tokenCount Number of tokens parsed
     function parse(
         string memory json,
         uint256 numberElements
@@ -196,24 +250,12 @@ library JsonParser {
         return (RETURN_SUCCESS, tokens, parser.toknext);
     }
 
-    // function processOpeningBracket(
-    //     Parser memory parser,
-    //     Token[] memory tokens,
-    //     bytes memory s // Need to pass in the bytes array
-    // ) internal pure returns (bool) {
-    //     (bool success, Token memory token) = allocateToken(parser, tokens);
-    //     if (!success) return false;
-
-    //     if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
-
-    //     // Fix: Compare the actual byte at parser.pos
-    //     token.jsonType = (s[parser.pos] == bytes1(0x7b)) ? JsonType.OBJECT : JsonType.ARRAY;
-    //     token.start = parser.pos;
-    //     token.startSet = true;
-    //     parser.toksuper = int256(parser.toknext - 1);
-    //     return true;
-    // }
-
+    /// @notice Processes an opening bracket ('{' or '[') in the JSON string.
+    /// @dev Creates a new token for objects or arrays and updates parser state.
+    /// @param parser Current parser state
+    /// @param tokens Array of tokens being built
+    /// @param s Byte array of the JSON string
+    /// @return Success status of the operation
     function processOpeningBracket(
         Parser memory parser,
         Token[] memory tokens,
@@ -236,6 +278,12 @@ library JsonParser {
         return true;
     }
 
+    /// @notice Processes a closing bracket ('}' or ']') in the JSON string.
+    /// @dev Validates matching brackets and updates token end positions.
+    /// @param parser Current parser state
+    /// @param tokens Array of tokens being built
+    /// @param c The closing bracket character
+    /// @return Success status of the operation
     function processClosingBracket(Parser memory parser, Token[] memory tokens, bytes1 c) internal pure returns (bool) {
         JsonType tokenType = (c == bytes1(0x7d)) ? JsonType.OBJECT : JsonType.ARRAY;
 
@@ -253,6 +301,10 @@ library JsonParser {
         return false;
     }
 
+    /// @notice Processes a comma separator in the JSON string.
+    /// @dev Updates the parser's super token pointer for nested structures.
+    /// @param parser Current parser state
+    /// @param tokens Array of tokens being built
     function processComma(Parser memory parser, Token[] memory tokens) internal pure {
         for (uint256 i = parser.toknext - 1; i < parser.toknext; i--) {
             if (
@@ -267,18 +319,30 @@ library JsonParser {
         }
     }
 
+    /// @notice Checks if a character is an opening bracket.
+    /// @param c Character to check
+    /// @return True if character is '{' or '['
     function isOpeningBracket(bytes1 c) internal pure returns (bool) {
         return (c == bytes1(0x7b) || c == bytes1(0x5b));
     }
 
+    /// @notice Checks if a character is a closing bracket.
+    /// @param c Character to check
+    /// @return True if character is '}' or ']'
     function isClosingBracket(bytes1 c) internal pure returns (bool) {
         return (c == bytes1(0x7d) || c == bytes1(0x5d));
     }
 
+    /// @notice Checks if a character is whitespace.
+    /// @param c Character to check
+    /// @return True if character is space, tab, newline, or carriage return
     function isWhitespace(bytes1 c) internal pure returns (bool) {
         return (c == bytes1(0x20) || c == bytes1(0x09) || c == bytes1(0x0a) || c == bytes1(0x0d));
     }
 
+    /// @notice Checks if a character can start a primitive value.
+    /// @param c Character to check
+    /// @return True if character can start a number, boolean, or null
     function isPrimitiveStartChar(bytes1 c) internal pure returns (bool) {
         return ((c >= bytes1(0x30) && c <= bytes1(0x39)) || // 0-9
             c == bytes1(0x2d) || // -
@@ -287,6 +351,9 @@ library JsonParser {
             c == bytes1(0x6e)); // n
     }
 
+    /// @notice Checks if a character can terminate a primitive value.
+    /// @param c Character to check
+    /// @return True if character can end a primitive value
     function isTerminatingChar(bytes1 c) internal pure returns (bool) {
         return (c == bytes1(0x20) ||
             c == bytes1(0x09) ||
@@ -297,11 +364,18 @@ library JsonParser {
             c == bytes1(0x5d));
     }
 
+    /// @notice Validates if a character is valid within a primitive value.
+    /// @param c Character to check
+    /// @return True if character is valid in a primitive
     function isValidPrimitiveChar(bytes1 c) internal pure returns (bool) {
         return (uint8(c) >= 32 && uint8(c) <= 127);
     }
 
-    // String utility functions
+    /// @notice Extracts a substring from a JSON string.
+    /// @param json The source JSON string
+    /// @param start Starting index
+    /// @param end Ending index
+    /// @return Extracted substring
     function getBytes(string memory json, uint256 start, uint256 end) public pure returns (string memory) {
         bytes memory s = bytes(json);
         bytes memory result = new bytes(end - start);
@@ -311,10 +385,17 @@ library JsonParser {
         return string(result);
     }
 
+    /// @notice Parses a string into an integer.
+    /// @param _a String to parse
+    /// @return Parsed integer value
     function parseInt(string memory _a) public pure returns (int256) {
         return parseInt(_a, 0);
     }
 
+    /// @notice Parses a string into an integer with decimal places.
+    /// @param _a String to parse
+    /// @param _b Number of decimal places to consider
+    /// @return Parsed integer value
     function parseInt(string memory _a, uint256 _b) public pure returns (int256) {
         bytes memory bresult = bytes(_a);
         int256 mint = 0;
@@ -340,6 +421,9 @@ library JsonParser {
         return negative ? -mint / int256(divisor) : mint / int256(divisor);
     }
 
+    /// @notice Converts an unsigned integer to a string.
+    /// @param i Integer to convert
+    /// @return String representation of the integer
     function uint2str(uint256 i) public pure returns (string memory) {
         if (i == 0) return "0";
         uint256 temp = i;
@@ -357,10 +441,17 @@ library JsonParser {
         return string(buffer);
     }
 
+    /// @notice Parses a string into a boolean.
+    /// @param _a String to parse ("true" or "false")
+    /// @return Parsed boolean value
     function parseBool(string memory _a) public pure returns (bool) {
         return strCompare(_a, "true") == 0;
     }
 
+    /// @notice Compares two strings lexicographically.
+    /// @param _a First string
+    /// @param _b Second string
+    /// @return -1 if _a < _b, 1 if _a > _b, 0 if equal
     function strCompare(string memory _a, string memory _b) public pure returns (int256) {
         bytes memory a = bytes(_a);
         bytes memory b = bytes(_b);

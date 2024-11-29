@@ -85,4 +85,69 @@ library PriorityQueue {
         self.heap[i] = self.heap[j];
         self.heap[j] = temp;
     }
+
+    /// @notice Creates a memory copy of the priority queue
+    /// @dev Efficiently copies the entire heap without modifying the original
+    /// @param self The storage queue to copy
+    /// @return A memory-based copy of the queue
+    function copy(Queue storage self) internal view returns (Queue memory) {
+        Queue memory copiedQueue;
+        
+        // Preallocate the heap array with the same length
+        copiedQueue.heap = new Entry[](self.heap.length);
+        
+        // Copy each entry directly
+        for (uint256 i = 0; i < self.heap.length; i++) {
+            copiedQueue.heap[i] = Entry({
+                priority: self.heap[i].priority,
+                value: self.heap[i].value
+            });
+        }
+        
+        return copiedQueue;
+    }
+
+    /// @notice Creates a memory copy of the priority queue using assembly (gas-optimized)
+    /// @dev Uses inline assembly for more gas-efficient memory copying
+    /// @param self The storage queue to copy
+    /// @return A memory-based copy of the queue
+    function assemblyCopy(Queue storage self) internal view returns (Queue memory) {
+        Queue memory copiedQueue;
+        
+        // Preallocate the heap array
+        copiedQueue.heap = new Entry[](self.heap.length);
+        
+        assembly {
+            // Get the storage slot of the original heap
+            let heapSlot := self.slot
+            
+            // Get the length of the heap
+            let heapLength := sload(add(heapSlot, 0))
+            
+            // Get the memory location of the copied heap
+            let destPtr := add(copiedQueue, 0x20)
+            
+            // Store the length first
+            mstore(destPtr, heapLength)
+            
+            // Copy each entry
+            for { let i := 0 } lt(i, heapLength) { i := add(i, 1) } {
+                // Calculate the storage slot for this entry
+                let entrySlot := add(heapSlot, add(1, mul(i, 2)))
+                
+                // Load priority and value
+                let priority := sload(entrySlot)
+                let value := sload(add(entrySlot, 1))
+                
+                // Calculate memory location to store the entry
+                let entryPtr := add(add(destPtr, 0x20), mul(i, 0x40))
+                
+                // Store priority and value
+                mstore(entryPtr, priority)
+                mstore(add(entryPtr, 0x20), value)
+            }
+        }
+        
+        return copiedQueue;
+    }
 }

@@ -16,10 +16,14 @@ ignition/deployments/chain-31337
 node_modules
 .env
 
-out
+/build
 types
 
 # installation files
 .pnp.cjs
 .pnp.loader.mjs
 .yarn/
+
+# bun && javascript dep
+bun.lockb
+package-lock.json
