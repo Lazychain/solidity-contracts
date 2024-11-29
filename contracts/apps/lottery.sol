@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import { PriorityQueue } from "../utils/PriorityQueue.sol";
 
 interface IFairyringContract {
@@ -40,8 +40,8 @@ contract NFTLottery {
     error InvalidThreshold();
     error GuessValueOutOfRange();
     error NicknameTooLong();
+    error NicknameTooShort();
     error InvalidCharactersInNickname();
-    error NicknameAlreadySet();
     error NoNicknameSet();
     error TooFewNFTs();
 
@@ -70,7 +70,7 @@ contract NFTLottery {
     IFairyringContract public fairyringContract;
 
     /// @notice This will maintain the NFTs
-    IERC721 public nftContract;
+    IERC721Enumerable public nftContract;
 
     /// @notice Owner of the auctionlottery
     address public owner;
@@ -81,6 +81,8 @@ contract NFTLottery {
     /// @notice value that represents the win rate % in a modulo way, default 5% = 20.
     uint8 public threshold = 20;
 
+    uint8 public maxNicknameLen = 7;
+    uint8 public minNicknameLen = 1;
     uint256 public nextNftId = 0; // Pointer to the next NFT ID
     uint256 public maxNfts; // Maximum number of NFTs minted
 
@@ -107,8 +109,12 @@ contract NFTLottery {
         address _nftContract,
         uint256 _maxNfts
     ) {
+
         if (_threshold >= 100) revert InvalidThreshold();
-        if (_maxNfts < 1) revert TooFewNFTs();
+        
+        nftContract = IERC721Enumerable(_nftContract);
+        maxNfts = getMaxNFTs();
+        if (maxNfts < 1) revert TooFewNFTs();
 
         owner = msg.sender;
         decrypterContract = IDecrypter(_decrypter);
@@ -116,8 +122,6 @@ contract NFTLottery {
         campaignFinalized = true;
         threshold = _threshold;
         fairyringContract = IFairyringContract(_fairyringContract);
-        nftContract = IERC721(_nftContract);
-        maxNfts = _maxNfts;
 
         emit LotteryInitialized(_decrypter, _fee);
     }
@@ -170,10 +174,12 @@ contract NFTLottery {
         uint256 randomValue = uint256(randomSeed);
 
         uint256 randomNumber = randomValue % threshold;
-        bool isWinner = (userGuess % 20) == randomNumber;
 
-        ++user.drawsCount;
-        ++totalDraws;
+        bool isWinner = (userGuess % threshold) == randomNumber;
+ 
+        user.draws_count++;
+        totalDraws++;
+
 
         if (isWinner) {
             // Select and transfer a random NFT
@@ -200,18 +206,14 @@ contract NFTLottery {
     // EXECUTE:ANYONE:setPlayerName(name: string) -> Result((), error)
     //  use info.address and set name in a Map{address: name}
     function setPlayerName(string memory name) public {
-        if (bytes(name).length > 7) {
-            revert NicknameTooLong();
-        }
-        if (!_isValidNickname(name)) {
+
+        if(!isValidNickname(name)){
+
             revert InvalidCharactersInNickname();
         }
 
         UserNameSpace storage userSpace = userDetails[msg.sender];
-        // Check if the user already has a nickname
-        if (bytes(userSpace.nickName).length > 0) {
-            revert NicknameAlreadySet();
-        }
+
         userSpace.nickName = name;
         userDetails[msg.sender] = userSpace;
         emit PlayerNameSet(msg.sender, name);
@@ -248,7 +250,24 @@ contract NFTLottery {
         return top10winners;
     }
 
-    function _isValidNickname(string memory name) internal pure returns (bool) {
+    function getMaxNFTs() private view returns (uint256) {
+        
+        try nftContract.totalSupply() returns (uint256 totalSupply) {
+            return totalSupply;
+        } catch {
+            revert("NFT contract does not support totalSupply");
+        }
+    }
+
+    function isValidNickname(string memory name) internal view returns (bool) {
+
+        if(bytes(name).length > maxNicknameLen){
+            revert NicknameTooLong();
+        }
+        if(bytes(name).length <= minNicknameLen){
+            revert NicknameTooShort();
+        }
+
         bytes memory nameBytes = bytes(name);
         uint256 lenght = nameBytes.length;
         for (uint256 i = 0; i < lenght; ++i) {
