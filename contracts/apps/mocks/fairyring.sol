@@ -43,10 +43,10 @@ contract MockFairyRing {
     //////////////
     // MODIFIER //
     //////////////
-    modifier onlyOperator() {
-        if (msg.sender != operator) revert MockFairyRing__OnlyOperator();
-        _;
-    }
+    // modifier onlyOperator() {
+    //     if (msg.sender != operator) revert MockFairyRing__OnlyOperator();
+    //     _;
+    // }
 
     constructor() {
         operator = msg.sender;
@@ -54,17 +54,15 @@ contract MockFairyRing {
 
     /**
      * @notice Commits a hash of the random value and secret
-     * @param randomValue value to be hidden
-     * @param secret secret to be used in commitment
+     * @param commitment to be ahved as commitment
      * @dev The commitment should be keccak256(abi.encodePacked(randomValue, secret))
      */
-    function commitRandomness(bytes32 randomValue, bytes32 secret) external onlyOperator {
+    function commitRandomness(bytes32 commitment) external /*onlyOperator*/ {
         if (operatorCommitment[msg.sender].commitment != bytes32(0) && !operatorCommitment[msg.sender].isRevealed) {
             revert MockFairyRing__InvalidCommitment();
         }
 
         uint256 bh = block.number;
-        bytes32 commitment = keccak256(abi.encodePacked(randomValue, secret));
         operatorCommitment[msg.sender] = Commitment({
             commitment: commitment,
             revealed: bytes32(0),
@@ -80,7 +78,7 @@ contract MockFairyRing {
      * @param randomValue The original random value
      * @param secret The secret used in commitment
      */
-    function revealRandomness(bytes32 randomValue, bytes32 secret) external onlyOperator {
+    function revealRandomness(bytes32 randomValue, bytes32 secret) external /*onlyOperator*/ {
         Commitment storage commitment = operatorCommitment[msg.sender];
 
         if (commitment.commitment == bytes32(0)) revert MockFairyRing__NoCommitmentFound();
