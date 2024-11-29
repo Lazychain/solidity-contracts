@@ -17,6 +17,7 @@ node_modules
 .env
 
 /out
+/build
 types
 
 # installation files
