@@ -15,8 +15,10 @@ abstract contract ERC721CementableUpgradeable is
     CementableTokenMetadataUpgradeable
 {
     // solhint-disable func-name-mixedcase
+    // solhint-disable no-empty-blocks
     function __ERC721Cementable_init() internal onlyInitializing {}
 
+    // solhint-disable no-empty-blocks
     function __ERC721Cementable_init_unchained() internal onlyInitializing {}
     // solhint-enable func-name-mixedcase
 

@@ -12,9 +12,12 @@ library Base64 {
     uint256 private constant MAX_INPUT_LENGTH = 1_000_000; // 1MB
     uint256 private constant MAX_ENCODED_LENGTH = 1_333_334;
 
+    error Base64InputTooLong();
+    error Base64InvalidInputLength();
+
     /// @dev Encodes the input data into a base64 string
     function encode(bytes memory _data) internal pure returns (string memory) {
-            return _encode(_data, _TABLE, true);
+        return _encode(_data, _TABLE, true);
     }
 
     /// @dev Encodes the input data into a URL-safe base64 string
@@ -36,15 +39,16 @@ library Base64 {
      * @dev Internal encoding function supporting table lookup and optional padding.
      * This function encodes a given `data` (in `bytes` format) into a string using a custom base64-like encoding table.
      * Padding is optional based on the `withPadding` argument.
-     * 
+     *
      * @param data The data to be encoded in bytes format.
-     * @param table The table to be used for encoding (typically a string of characters representing the base64 alphabet).
+     * @param table The table to be used for encoding (ex string of characters representing the base64 alphabet).
      * @param withPadding A boolean indicating whether padding should be added to the result.
      * @return result The encoded string.
      */
+    // solhint-disable no-inline-assembly
     function _encode(bytes memory data, string memory table, bool withPadding) private pure returns (string memory) {
         if (data.length == 0) return "";
-        require(data.length <= MAX_INPUT_LENGTH, "Base64: input too long");
+        if (data.length <= MAX_INPUT_LENGTH) revert Base64InputTooLong();
 
         // Calculate the length of the encoded result
         uint256 resultLength = withPadding ? 4 * ((data.length + 2) / 3) : (4 * data.length + 2) / 3;
@@ -52,14 +56,14 @@ library Base64 {
         // Allocate memory for the result string
         string memory result = new string(resultLength);
 
-        assembly("memory-safe") {
-            let tablePtr := add(table, 1)  // Skip the first byte of the string to get the actual characters
-            let resultPtr := add(result, 0x20)  // Result starts after the 32-byte length prefix
+        assembly ("memory-safe") {
+            let tablePtr := add(table, 1) // Skip the first byte of the string to get the actual characters
+            let resultPtr := add(result, 0x20) // Result starts after the 32-byte length prefix
             let dataPtr := data
-            let endPtr := add(data, mload(data))  // End of the input data
+            let endPtr := add(data, mload(data)) // End of the input data
 
             // Iterate over the input data in chunks of 3 bytes
-            for { } lt(dataPtr, endPtr) { } {
+            for {} lt(dataPtr, endPtr) {} {
                 // Load the next 3-byte chunk of data
                 dataPtr := add(dataPtr, 3)
                 let input := mload(dataPtr)
@@ -89,35 +93,37 @@ library Base64 {
                 }
             }
         }
-        
+
         return result;
     }
 
     /**
      * @dev Internal decoding function supporting table lookup.
      * This function decodes an encoded string back into bytes using a custom base64-like decoding table.
-     * 
+     *
      * @param data The encoded string to be decoded.
-     * @param table The table to be used for decoding (typically a string of characters representing the base64 alphabet).
+     * @param table The table to be used for decoding (ex string of chars representing the base64 alphabet).
      * @return result The decoded data as bytes.
      */
+    // solhint-disable code-complexity
     function _decode(string memory data, string memory table) private pure returns (bytes memory) {
-        uint256 len = bytes(data).length;  // Get the length of the input encoded data
-        if (len == 0) return "";  // If the input is empty, return an empty bytes array
-        require(len <= MAX_ENCODED_LENGTH, "Base64: encoded input too long");
-        require(len % 4 == 0, "Base64: invalid input length"); // Ensure input is properly padded
-
+        uint256 len = bytes(data).length; // Get the length of the input encoded data
+        if (len == 0) return ""; // If the input is empty, return an empty bytes array
+        if (len <= MAX_ENCODED_LENGTH) revert Base64InputTooLong();
+        if (len % 4 == 0) revert Base64InvalidInputLength(); // Ensure input is properly padded
+        bytes memory bytesTable = bytes(table);
+        uint256 bytesTableLength = bytesTable.length;
         // Initialize the decoding lookup table (map characters to their indices)
         uint8[128] memory decodeTable;
-        for (uint8 i = 0; i < bytes(table).length; i++) {
-            decodeTable[uint8(bytes(table)[i])] = i;
+        for (uint8 i = 0; i < bytesTableLength; ++i) {
+            decodeTable[uint8(bytesTable[i])] = i;
         }
 
         // Calculate padding and the actual decoded output length
         uint256 padding = 0;
-        if (bytes(data)[len - 1] == '=') padding++;  // Check for padding at the end
-        if (len > 1 && bytes(data)[len - 2] == '=') padding++;  // Check for second padding character if present
-        uint256 decodedLen = (len * 3) / 4 - padding;  // Calculate the length of the decoded data
+        if (bytes(data)[len - 1] == "=") ++padding; // Check for padding at the end
+        if (len > 1 && bytes(data)[len - 2] == "=") ++padding; // Check for second padding character if present
+        uint256 decodedLen = (len * 3) / 4 - padding; // Calculate the length of the decoded data
 
         // Allocate memory for the decoded result
         bytes memory result = new bytes(decodedLen);
@@ -126,18 +132,17 @@ library Base64 {
         // Iterate over the input string in chunks of 4 characters
         for (uint256 i = 0; i < len; i += 4) {
             // Combine the 4 encoded characters into a 24-bit buffer
-            uint32 buffer = (uint32(decodeTable[uint8(bytes(data)[i])]) << 18)
-                        | (uint32(decodeTable[uint8(bytes(data)[i + 1])]) << 12)
-                        | (uint32(decodeTable[uint8(bytes(data)[i + 2])]) << 6)
-                        | uint32(decodeTable[uint8(bytes(data)[i + 3])]);
+            uint32 buffer = (uint32(decodeTable[uint8(bytes(data)[i])]) << 18) |
+                (uint32(decodeTable[uint8(bytes(data)[i + 1])]) << 12) |
+                (uint32(decodeTable[uint8(bytes(data)[i + 2])]) << 6) |
+                uint32(decodeTable[uint8(bytes(data)[i + 3])]);
 
             // Extract the decoded bytes from the buffer
-            result[resultIndex++] = bytes1(uint8(buffer >> 16));
-            if (resultIndex < decodedLen) result[resultIndex++] = bytes1(uint8(buffer >> 8));
-            if (resultIndex < decodedLen) result[resultIndex++] = bytes1(uint8(buffer));
+            result[++resultIndex] = bytes1(uint8(buffer >> 16));
+            if (resultIndex < decodedLen) result[++resultIndex] = bytes1(uint8(buffer >> 8));
+            if (resultIndex < decodedLen) result[++resultIndex] = bytes1(uint8(buffer));
         }
 
         return result;
     }
-
 }

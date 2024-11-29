@@ -109,9 +109,8 @@ contract NFTLottery {
         address _nftContract,
         uint256 _maxNfts
     ) {
-
         if (_threshold >= 100) revert InvalidThreshold();
-        
+
         nftContract = IERC721Enumerable(_nftContract);
         maxNfts = getMaxNFTs();
         if (maxNfts < 1) revert TooFewNFTs();
@@ -176,10 +175,9 @@ contract NFTLottery {
         uint256 randomNumber = randomValue % threshold;
 
         bool isWinner = (userGuess % threshold) == randomNumber;
- 
+
         user.draws_count++;
         totalDraws++;
-
 
         if (isWinner) {
             // Select and transfer a random NFT
@@ -206,9 +204,7 @@ contract NFTLottery {
     // EXECUTE:ANYONE:setPlayerName(name: string) -> Result((), error)
     //  use info.address and set name in a Map{address: name}
     function setPlayerName(string memory name) public {
-
-        if(!isValidNickname(name)){
-
+        if (!isValidNickname(name)) {
             revert InvalidCharactersInNickname();
         }
 
@@ -239,8 +235,8 @@ contract NFTLottery {
         // Extract the top 10 winners from the priority queue
         PriorityQueue.Queue memory tempQueue = _leaderboard.copy();
         // or use the assembly copy if there is significant gas
-        uint256 lenght = tempQueue.heap.length;
-        for (uint256 i = 0; i < 10 && lenght > 0; ++i) {
+        uint256 length = tempQueue.heap.length;
+        for (uint256 i = 0; i < 10 && length > 0; ++i) {
             address winnerAddress = tempQueue.heap[i].value;
 
             UserNameSpace storage winner = userDetails[winnerAddress];
@@ -251,7 +247,6 @@ contract NFTLottery {
     }
 
     function getMaxNFTs() private view returns (uint256) {
-        
         try nftContract.totalSupply() returns (uint256 totalSupply) {
             return totalSupply;
         } catch {
@@ -260,17 +255,16 @@ contract NFTLottery {
     }
 
     function isValidNickname(string memory name) internal view returns (bool) {
-
-        if(bytes(name).length > maxNicknameLen){
+        if (bytes(name).length > maxNicknameLen) {
             revert NicknameTooLong();
         }
-        if(bytes(name).length <= minNicknameLen){
+        if (bytes(name).length <= minNicknameLen) {
             revert NicknameTooShort();
         }
 
         bytes memory nameBytes = bytes(name);
-        uint256 lenght = nameBytes.length;
-        for (uint256 i = 0; i < lenght; ++i) {
+        uint256 length = nameBytes.length;
+        for (uint256 i = 0; i < length; ++i) {
             bytes1 char = nameBytes[i];
 
             // Check if the character is a valid UTF-8 character

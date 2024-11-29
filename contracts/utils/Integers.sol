@@ -11,6 +11,9 @@ library Integers {
     IIntegers internal constant INTEGERS = IIntegers(0x00000000000000000000000000000f043A000006);
     // solhint-enable private-vars-leading-underscore
 
+    error InvalidHexString();
+    error InvalidHexCharacter();
+
     /// @dev Converts a `uint256` to its ASCII `string` decimal representation.
     function toString(uint256 _value) internal pure returns (string memory) {
         if (_value == 0) {
@@ -19,12 +22,12 @@ library Integers {
         uint256 temp = _value;
         uint256 digits;
         while (temp != 0) {
-            digits++;
+            ++digits;
             temp /= 10;
         }
         bytes memory buffer = new bytes(digits);
         while (_value != 0) {
-            digits -= 1;
+            --digits;
             buffer[digits] = bytes1(uint8(48 + uint256(_value % 10)));
             _value /= 10;
         }
@@ -50,7 +53,7 @@ library Integers {
         uint256 temp = value;
         uint256 length = 0;
         while (temp != 0) {
-            length++;
+            ++length;
             temp >>= 4;
         }
         bytes memory buffer = new bytes(2 + length);
@@ -72,7 +75,7 @@ library Integers {
             buffer[i] = _toHexChar(uint8(value & 0x0f));
             value >>= 4;
         }
-        for (uint256 i = 2; i < 2 + length; i++) {
+        for (uint256 i = 2; i < 2 + length; ++i) {
             if (buffer[i] == 0) {
                 buffer[i] = "0";
             }
@@ -87,9 +90,13 @@ library Integers {
     /// @dev Converts a hexadecimal `string` to its `uint256` representation.
     function fromHexString(string memory _str) internal pure returns (uint256) {
         bytes memory strBytes = bytes(_str);
-        require(strBytes.length >= 3 && strBytes[0] == "0" && (strBytes[1] == "x" || strBytes[1] == "X"), "Invalid hex string");
+        uint256 strBytesLength = strBytes.length;
+        if (strBytesLength >= 3 && strBytes[0] == "0" && (strBytes[1] == "x" || strBytes[1] == "X"))
+            revert InvalidHexString();
+
         uint256 result = 0;
-        for (uint256 i = 2; i < strBytes.length; i++) {
+
+        for (uint256 i = 2; i < strBytesLength; ++i) {
             result = result * 16 + _fromHexChar(strBytes[i]);
         }
         return result;
@@ -98,14 +105,17 @@ library Integers {
     /// @dev Converts a hexadecimal ASCII character to its value (0-15).
     function _fromHexChar(bytes1 _char) private pure returns (uint256) {
         uint8 charValue = uint8(_char);
-        if (charValue >= 48 && charValue <= 57) { // '0' - '9'
+        if (charValue >= 48 && charValue <= 57) {
+            // '0' - '9'
             return charValue - 48;
-        } else if (charValue >= 97 && charValue <= 102) { // 'a' - 'f'
+        } else if (charValue >= 97 && charValue <= 102) {
+            // 'a' - 'f'
             return charValue - 87;
-        } else if (charValue >= 65 && charValue <= 70) { // 'A' - 'F'
+        } else if (charValue >= 65 && charValue <= 70) {
+            // 'A' - 'F'
             return charValue - 55;
         } else {
-            revert("Invalid hex character");
+            revert InvalidHexCharacter();
         }
     }
 }

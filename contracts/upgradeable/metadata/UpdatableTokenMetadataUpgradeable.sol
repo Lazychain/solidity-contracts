@@ -6,8 +6,10 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 
 abstract contract UpdatableTokenMetadataUpgradeable is Initializable, UpdatableTokenMetadata {
     // solhint-disable func-name-mixedcase
+    // solhint-disable no-empty-blocks
     function __UpdatableTokenMetadata_init() internal onlyInitializing {}
 
+    // solhint-disable no-empty-blocks
     function __UpdatableTokenMetadata_init_unchained() internal onlyInitializing {}
     // solhint-enable func-name-mixedcase
 }
