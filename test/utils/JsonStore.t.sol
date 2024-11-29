@@ -13,9 +13,9 @@ contract JsonStoreTest is Test {
 
     // Test constants
     string constant TEST_JSON = '{"name":"Test","value":123}';
-    string constant INVALID_JSON = "{name:Test}"; // Actually invalid JSON
     string constant EMPTY_JSON = "";
     bytes32 constant TEST_SLOT = bytes32(uint256(1));
+    string constant INVALID_JSON = "{name:Test}"; // Actually invalid JSON
     address testUser;
     address otherUser;
 
@@ -58,8 +58,7 @@ contract JsonStoreTest is Test {
 
     function testSetWithoutPrepaidSlots() public {
         vm.startPrank(otherUser); // Switch to unpaid user
-        // vm.expectRevert();
-        // vm.expectRevert(JsonStore.JsonStore__InsufficientPrepaidSlots.selector);
+        vm.expectRevert(JsonStore.JsonStore__InsufficientPrepaidSlots.selector);
         store.set(TEST_SLOT, TEST_JSON);
         vm.stopPrank();
     }
@@ -72,22 +71,25 @@ contract JsonStoreTest is Test {
     //     vm.stopPrank();
     // }
 
-    // function testSetWithEmptyJson() public {
-    //     vm.expectRevert(abi.encodeWithSignature("JsonStore__EmptyJson()"));
-    //     store.set(TEST_SLOT, EMPTY_JSON);
-    // }
+    function testSetWithEmptyJson() public {
+        vm.expectRevert(abi.encodeWithSignature("JsonStore__EmptyJson()"));
+        store.set(TEST_SLOT, EMPTY_JSON);
+    }
 
-    // function testSetValidJson() public {
-    //     uint64 initialPrepaid = store.prepaid(testUser);
+    function testSetValidJson() public {
+        // First prepay slots
+        store.prepay(testUser, 1); // Since we're calling from test contract
+        uint64 initialPrepaid = store.prepaid(testUser);
 
-    //     // First create the event we expect to see
-    //     // Need to explicitly emit the event we expect to match
-    //     emit JsonStored(testUser, TEST_SLOT);
+        assertEq(initialPrepaid, 11, "Main store should have 11 slots for test user");
 
-    //     // Then do the actual call
-    //     assertTrue(store.set(TEST_SLOT, TEST_JSON));
-    //     assertEq(store.prepaid(testUser), initialPrepaid - 1);
-    // }
+        vm.startPrank(testUser);
+        // emit JsonStored(testUser, TEST_SLOT);
+
+        assertTrue(store.set(TEST_SLOT, TEST_JSON));
+        assertEq(store.prepaid(testUser), initialPrepaid - 1);
+        vm.stopPrank();
+    }
 
     // function testSetValidJson() public {
     //     uint64 initialPrepaid = store.prepaid(testUser);
