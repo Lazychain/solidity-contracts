@@ -115,7 +115,6 @@ contract NFTLottery {
      */
 
     constructor(address _decrypter, uint256 _fee, uint8 _threshold, address _fairyringContract, address _nftContract) {
-
         if (_threshold >= 100) revert InvalidThreshold();
 
         nftContract = IERC721Enumerable(_nftContract);
@@ -297,7 +296,6 @@ contract NFTLottery {
 
         uint256 lenght = nameBytes.length;
         for (uint256 i = 0; i < lenght; ++i) {
-
             bytes1 char = nameBytes[i];
 
             // Check if the character is a valid UTF-8 character

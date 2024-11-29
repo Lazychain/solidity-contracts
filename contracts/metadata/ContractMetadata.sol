@@ -11,7 +11,7 @@ import { JsonUtil } from "../utils/JsonUtil.sol";
 import { JsonStore } from "../utils/JsonStore.sol";
 
 abstract contract ContractMetadata is IContractMetadata {
-    bool internal _contractMetadataCemented;
+    bool internal _contractMetadataCemented = false;
 
     bytes32 private constant _CONTRACT_METADATA_SLOT =
         0x841f636c3ae717f882adaf710a5db29ca95821d91f8d637d2b614cbcb320c700;
