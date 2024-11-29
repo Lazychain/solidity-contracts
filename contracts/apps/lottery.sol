@@ -32,6 +32,7 @@ contract NFTLottery {
     event CampaignStatusChanged(bool isFinalized);
     event PlayerNameSet(address indexed player, string name);
 
+    error NFTContractDoesNotSupportTotalSupply();
     error OnlyOwnerCanWithdraw();
     error OnlyOwnerCanFinalizeCampaign();
     error OnlyOwnerCanStartCampaign();
@@ -45,14 +46,18 @@ contract NFTLottery {
     error NoNicknameSet();
     error TooFewNFTs();
 
+    /**
+     * @dev There's no code at `target` (it is not a contract).
+     */
+    error AddressEmptyCode(address target);
     string private constant _VERSION = "1.00"; // Private as to not clutter the ABI
 
     /// @notice Represents a user name space entry and data
     struct UserNameSpace {
-        address userAddress; // User address
         string nickName; // Nick name of the user
         uint256 drawsCount; // How many times the user have draw
         uint256 winCount; // How many times the user have win
+        uint256 height; // Last user height registered to avoid multiple draw calls on the same height.
     }
 
     mapping(address => UserNameSpace) public userDetails; //other details of users
@@ -81,10 +86,17 @@ contract NFTLottery {
     /// @notice value that represents the win rate % in a modulo way, default 5% = 20.
     uint8 public threshold = 20;
 
+    /// @notice Maximun user nick lenght
     uint8 public maxNicknameLen = 7;
+
+    /// @notice Minimun user nick lenght
     uint8 public minNicknameLen = 1;
-    uint256 public nextNftId = 0; // Pointer to the next NFT ID
-    uint256 public maxNfts; // Maximum number of NFTs minted
+
+    /// @notice Pointer to the next NFT ID
+    uint256 public nextNftId = 0;
+
+    /// @notice Maximum number of NFTs minted
+    uint256 public maxNfts;
 
     /// @notice holds the best users based on their win count
     // TODO: what if two guys have same win count? we should give priority to the
@@ -101,19 +113,11 @@ contract NFTLottery {
      * @param _fairyringContract Address of the fairy ring contract
      * @param _nftContract Address of the contract maintaining the NFTs
      */
-    constructor(
-        address _decrypter,
-        uint256 _fee,
-        uint8 _threshold,
-        address _fairyringContract,
-        address _nftContract,
-        uint256 _maxNfts
-    ) {
-
+    constructor(address _decrypter, uint256 _fee, uint8 _threshold, address _fairyringContract, address _nftContract) {
         if (_threshold >= 100) revert InvalidThreshold();
-        
+
         nftContract = IERC721Enumerable(_nftContract);
-        maxNfts = getMaxNFTs();
+        maxNfts = _getMaxNFTs();
         if (maxNfts < 1) revert TooFewNFTs();
 
         owner = msg.sender;
@@ -158,17 +162,30 @@ contract NFTLottery {
     //      { result: false, total_draws }
     //      Emit Lose Event
     function draw(uint256 userGuess) public payable returns (bool) {
+        // check pre-conditions
         if (campaignFinalized) revert CampaignOver();
         if (msg.value < fee) revert InsufficientFundsSent();
         if (userGuess > 100) revert GuessValueOutOfRange();
+        _noContractCall();
 
+        // check user pre-conditions
         UserNameSpace storage user = userDetails[msg.sender];
-        if (user.userAddress == address(0)) {
-            user.userAddress = msg.sender;
+
+        // Only one draw call per height, to avoid bots calling
+        // We dont thrown an error, we want the bots to spend as much as possible
+        if (user.height >= block.number) {
+            ++user.drawsCount;
+            emit LotteryDrawn(msg.sender, false, user.drawsCount);
+            return false;
+        } else {
+            // update user height
+            user.height = block.number;
         }
-        if (bytes(user.nickName).length == 0) {
-            revert NoNicknameSet();
-        }
+
+        // TODO: remove this, since setPlayerName check this first.
+        // if (bytes(user.nickName).length == 0) {
+        //     revert NoNicknameSet();
+        // }
 
         (bytes32 randomSeed, ) = fairyringContract.latestRandomness();
         uint256 randomValue = uint256(randomSeed);
@@ -176,10 +193,9 @@ contract NFTLottery {
         uint256 randomNumber = randomValue % threshold;
 
         bool isWinner = (userGuess % threshold) == randomNumber;
- 
-        user.draws_count++;
-        totalDraws++;
 
+        ++user.drawsCount;
+        ++totalDraws;
 
         if (isWinner) {
             // Select and transfer a random NFT
@@ -193,6 +209,7 @@ contract NFTLottery {
 
             if (nextNftId >= maxNfts) {
                 // End the campaign if all NFTs are used
+                // TODO: here a user addr can call this? Make a test.
                 finalizeCampaign();
             }
         }
@@ -206,11 +223,7 @@ contract NFTLottery {
     // EXECUTE:ANYONE:setPlayerName(name: string) -> Result((), error)
     //  use info.address and set name in a Map{address: name}
     function setPlayerName(string memory name) public {
-
-        if(!isValidNickname(name)){
-
-            revert InvalidCharactersInNickname();
-        }
+        _isValidNickname(name);
 
         UserNameSpace storage userSpace = userDetails[msg.sender];
 
@@ -234,41 +247,52 @@ contract NFTLottery {
         return _getTop10Winners();
     }
 
+    // TODO: move this code inside PriorityQueue as a Query top `n` registries.
     function _getTop10Winners() private view returns (UserNameSpace[10] memory) {
         UserNameSpace[10] memory top10winners;
         // Extract the top 10 winners from the priority queue
-        PriorityQueue.Queue memory tempQueue = _leaderboard.copy();
+        // PriorityQueue.Queue memory tempQueue = _leaderboard.copy();
         // or use the assembly copy if there is significant gas
-        uint256 lenght = tempQueue.heap.length;
-        for (uint256 i = 0; i < 10 && lenght > 0; ++i) {
-            address winnerAddress = tempQueue.heap[i].value;
 
-            UserNameSpace storage winner = userDetails[winnerAddress];
-            top10winners[i] = winner; // Add the winner to the result array
+        // Since we dont mutate the leaderboard, just get values, we dont need to copy().
+        uint256 lenght = _leaderboard.heap.length;
+        for (uint256 i = 0; i < 10 && lenght > 0; ++i) {
+            address winnerAddress = _leaderboard.heap[i].value;
+            if (winnerAddress != address(0)) {
+                UserNameSpace storage winner = userDetails[winnerAddress];
+                top10winners[i] = winner; // Add the winner to the result array
+            } else {
+                // case where no more address in the priority queue
+                // maybe we could do this directly on the PriorityQueue struct.
+                break;
+            }
         }
 
         return top10winners;
     }
 
-    function getMaxNFTs() private view returns (uint256) {
-        
+    function _getMaxNFTs() private view returns (uint256) {
         try nftContract.totalSupply() returns (uint256 totalSupply) {
             return totalSupply;
         } catch {
-            revert("NFT contract does not support totalSupply");
+            revert NFTContractDoesNotSupportTotalSupply();
         }
     }
 
-    function isValidNickname(string memory name) internal view returns (bool) {
+    function _isValidNickname(string memory name) internal view {
+        bytes memory nameBytes = bytes(name);
 
-        if(bytes(name).length > maxNicknameLen){
+        if (nameBytes.length == 0) {
+            revert NoNicknameSet();
+        }
+
+        if (nameBytes.length > maxNicknameLen) {
             revert NicknameTooLong();
         }
-        if(bytes(name).length <= minNicknameLen){
+        if (nameBytes.length <= minNicknameLen) {
             revert NicknameTooShort();
         }
 
-        bytes memory nameBytes = bytes(name);
         uint256 lenght = nameBytes.length;
         for (uint256 i = 0; i < lenght; ++i) {
             bytes1 char = nameBytes[i];
@@ -276,7 +300,7 @@ contract NFTLottery {
             // Check if the character is a valid UTF-8 character
             if (!(char >= 0x20 && char <= 0x7E)) {
                 // Basic printable ASCII range
-                return false;
+                revert InvalidCharactersInNickname();
             }
 
             // Allow only letters, digits, '.', and '-'
@@ -287,11 +311,9 @@ contract NFTLottery {
                 char != "." &&
                 char != "-"
             ) {
-                return false;
+                revert InvalidCharactersInNickname();
             }
         }
-
-        return true;
     }
 
     /**
@@ -305,5 +327,12 @@ contract NFTLottery {
         if (msg.sender != owner) revert OnlyOwnerCanWithdraw();
         emit RewardWithdrawn(owner, address(this).balance);
         Address.sendValue(payable(owner), address(this).balance);
+    }
+
+    function _noContractCall() internal view {
+        // Check if a smart contract calling -> 0 if EOA, >0 if smart contract
+        if (msg.sender.code.length > 0) {
+            revert AddressEmptyCode(msg.sender);
+        }
     }
 }
