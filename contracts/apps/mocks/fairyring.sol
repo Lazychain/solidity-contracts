@@ -14,6 +14,7 @@ contract MockFairyRing {
     error MockFairyRing__InvalidCommitment();
     error MockFairyRing__NoCommitmentFound();
     error MockFairyRing__CommitmentAlreadyRevealed();
+    error MockFairyRing__UnRevealedCommitmentExist();
 
     ///////////
     // EVENT //
@@ -50,7 +51,7 @@ contract MockFairyRing {
      */
     function commitRandomness(bytes32 commitment) external /*onlyOperator*/ {
         if (operatorCommitment[msg.sender].commitment != bytes32(0) && !operatorCommitment[msg.sender].isRevealed) {
-            revert MockFairyRing__InvalidCommitment();
+            revert MockFairyRing__UnRevealedCommitmentExist();
         }
 
         uint256 bh = block.number;

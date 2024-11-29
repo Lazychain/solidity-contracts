@@ -113,7 +113,7 @@ contract MockFairyRingTest is Test {
 
         // Try to commit again without revealing
         bytes32 newCommitment = bytes32(uint256(789));
-        vm.expectRevert(MockFairyRing.MockFairyRing__InvalidCommitment.selector);
+        vm.expectRevert(MockFairyRing.MockFairyRing__UnRevealedCommitmentExist.selector);
         vm.prank(alice);
         mockFairyRing.commitRandomness(newCommitment);
     }
