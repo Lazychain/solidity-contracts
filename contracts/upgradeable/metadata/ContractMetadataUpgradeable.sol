@@ -11,12 +11,13 @@ abstract contract ContractMetadataUpgradeable is Initializable, ContractMetadata
         bool _cemented;
     }
 
-    bytes32 private constant ContractMetadataStorageLocation =
+    bytes32 private constant _CONTRACT_METADATA_STORAGE_LOCATION =
         0x985371f50cecfcb1a6dfdccb4c871d7a5d94b17a9d368860b42eaca20a68bf00;
 
+    // solhint-disable no-inline-assembly
     function _getContractMetadataStorage() private pure returns (ContractMetadataStorage storage s) {
         assembly {
-            s.slot := ContractMetadataStorageLocation
+            s.slot := _CONTRACT_METADATA_STORAGE_LOCATION
         }
     }
 

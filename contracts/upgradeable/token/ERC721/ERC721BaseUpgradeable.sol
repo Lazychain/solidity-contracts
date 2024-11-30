@@ -9,8 +9,10 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 
 abstract contract ERC721BaseUpgradeable is Initializable, ERC2981Upgradeable, ERC721UpgradeableOZ {
     // solhint-disable func-name-mixedcase
+    // solhint-disable no-empty-blocks
     function __ERC721Base_init() internal onlyInitializing {}
 
+    // solhint-disable no-empty-blocks
     function __ERC7215Base_init_unchained() internal onlyInitializing {}
     // solhint-enable func-name-mixedcase
 

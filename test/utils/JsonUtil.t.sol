@@ -14,7 +14,7 @@ contract JsonUtilTest is Test {
 
     function setUp() public {}
 
-    function test_Get() public {
+    function test_Get() public pure {
         string memory name = JsonUtil.get(SIMPLE_JSON, "name");
         string memory age = JsonUtil.get(SIMPLE_JSON, "age");
         string memory city = JsonUtil.get(SIMPLE_JSON, "city");
@@ -24,50 +24,50 @@ contract JsonUtilTest is Test {
         assertEq(city, "New York");
     }
 
-    function test_GetNested() public {
+    function test_GetNested() public pure {
         assertEq(JsonUtil.get(NESTED_JSON, "person.name"), "John");
         assertEq(JsonUtil.get(NESTED_JSON, "person.age"), "30");
         assertEq(JsonUtil.get(NESTED_JSON, "person.address.city"), "New York");
         assertEq(JsonUtil.get(NESTED_JSON, "person.address.zip"), "10001");
     }
 
-    function test_GetArray() public {
+    function test_GetArray() public pure {
         assertEq(JsonUtil.get(ARRAY_JSON, "numbers[0]"), "1");
         assertEq(JsonUtil.get(ARRAY_JSON, "numbers[1]"), "2");
         assertEq(JsonUtil.get(ARRAY_JSON, "names[0]"), "John");
         assertEq(JsonUtil.get(ARRAY_JSON, "names[1]"), "Jane");
     }
 
-    function test_GetComplex() public {
+    function test_GetComplex() public pure {
         assertEq(JsonUtil.get(COMPLEX_JSON, "data.users[0].name"), "John");
         assertEq(JsonUtil.get(COMPLEX_JSON, "data.users[1].name"), "Jane");
         assertEq(JsonUtil.get(COMPLEX_JSON, "data.users[0].active"), "true");
         assertEq(JsonUtil.get(COMPLEX_JSON, "data.users[1].active"), "false");
     }
 
-    function test_GetInt() public {
+    function test_GetInt() public pure {
         assertEq(JsonUtil.getInt(SIMPLE_JSON, "age"), 30);
         assertEq(JsonUtil.getInt(NESTED_JSON, "person.age"), 30);
     }
 
-    function test_GetUint() public {
+    function test_GetUint() public pure {
         assertEq(JsonUtil.getUint(SIMPLE_JSON, "age"), 30);
         assertEq(JsonUtil.getUint(NESTED_JSON, "person.age"), 30);
     }
 
-    function test_GetBool() public {
+    function test_GetBool() public pure {
         assertTrue(JsonUtil.getBool(COMPLEX_JSON, "data.users[0].active"));
         assertFalse(JsonUtil.getBool(COMPLEX_JSON, "data.users[1].active"));
     }
 
-    function test_Exists() public {
+    function test_Exists() public pure {
         assertTrue(JsonUtil.exists(SIMPLE_JSON, "name"));
         assertTrue(JsonUtil.exists(NESTED_JSON, "person.address.city"));
         assertFalse(JsonUtil.exists(SIMPLE_JSON, "notexist"));
         assertFalse(JsonUtil.exists(NESTED_JSON, "person.notexist"));
     }
 
-    function test_Validate() public {
+    function test_Validate() public pure {
         assertTrue(JsonUtil.validate(SIMPLE_JSON));
         assertTrue(JsonUtil.validate(NESTED_JSON));
         assertTrue(JsonUtil.validate(ARRAY_JSON));

@@ -13,7 +13,8 @@ import { JsonStore } from "../utils/JsonStore.sol";
 abstract contract ContractMetadata is IContractMetadata {
     bool internal _contractMetadataCemented;
 
-    bytes32 private constant ContractMetadataSlot = 0x841f636c3ae717f882adaf710a5db29ca95821d91f8d637d2b614cbcb320c700;
+    bytes32 private constant _CONTRACT_METADATA_SLOT =
+        0x841f636c3ae717f882adaf710a5db29ca95821d91f8d637d2b614cbcb320c700;
 
     modifier onlyContractMetadataEditor() virtual {
         if (!_canSetContractMetadata()) {
@@ -90,7 +91,8 @@ abstract contract ContractMetadata is IContractMetadata {
         values[3] = _data.externalLink;
         metadata = JsonUtil.set(metadata, paths, values);
 
-        for (uint8 i = 0; i < _data.collaborators.length; i++) {
+        uint256 length = _data.collaborators.length;
+        for (uint8 i = 0; i < length; ++i) {
             metadata = JsonUtil.set(metadata, "collaborators.-1", _data.collaborators[i]);
         }
 
