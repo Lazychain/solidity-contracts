@@ -1,54 +1,178 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import { Base64 } from "./Base64.sol";
+import { JsonUtil } from "./JsonUtil.sol";
+// import { IBase64 } from "../interfaces/precompile/IBase64.sol";
 import { IJsonStore } from "../interfaces/precompile/IJsonStore.sol";
 
+/**
+ * @title JsonStore Library
+ * @notice A library for storing and managing JSON data in smart contracts
+ */
 library JsonStore {
     // solhint-disable private-vars-leading-underscore
     IJsonStore internal constant STORE = IJsonStore(0x00000000000000000000000000000F043a000007);
-    // solhint-enable private-vars-leading-underscore
+    // IBase64 public constant BASE64 = IBase64(0x00000000000000000000000000000f043a000004);
 
-    function exists(address _key, bytes32 _slot) internal view returns (bool) {
-        return STORE.exists(_key, _slot);
+    ////////////
+    // EVENTS //
+    ////////////
+    event JsonStored(address indexed owner, bytes32 indexed slot);
+    event JsonCleared(address indexed owner, bytes32 indexed slot);
+    event SlotsPrepaid(address indexed owner, uint64 numSlots);
+
+    struct JsonData {
+        string jsonBlob;
+        bool exists;
+        address owner;
     }
 
-    function uri(address _key, bytes32 _slot) internal view returns (string memory) {
-        return STORE.uri(_key, _slot);
+    struct Store {
+        mapping(bytes32 => JsonData) jsonStorage;
+        mapping(address => uint64) prepaidSlots;
     }
 
-    function get(address _key, bytes32 _slot) internal view returns (string memory) {
-        return STORE.get(_key, _slot);
+    ////////////
+    // Errors //
+    ////////////
+    error JsonStore__EmptyJson();
+    error JsonStore__InvalidJson();
+    error JsonStore__SlotDoesNotExist();
+    error JsonStore__SlotAlreadyExists();
+    error JsonStore__InsufficientPrepaidSlots();
+
+    /**
+     * @notice Checks if a slot exists and is owned by the given address
+     * @param self The Store struct
+     * @param _key The owner's address
+     * @param _slot The slot to check
+     * @return bool indicating if the slot exists and is owned by the address
+     */
+    function exists(Store storage self, address _key, bytes32 _slot) public view returns (bool) {
+        JsonData storage data = self.jsonStorage[_slot];
+        return data.exists && data.owner == _key;
     }
 
-    function prepaid(address _key) internal view returns (uint64) {
-        return STORE.prepaid(_key);
+    /**
+     * @notice Gets the JSON data URI for a slot
+     * @param self The Store struct
+     * @param _key The owner's address
+     * @param _slot The slot to retrieve
+     * @return string The JSON data URI
+     */
+    function uri(Store storage self, address _key, bytes32 _slot) public view returns (string memory) {
+        if (!exists(self, _key, _slot)) revert JsonStore__SlotDoesNotExist();
+
+        return
+            string(
+                abi.encodePacked(
+                    "data:application/json;base64,",
+                    Base64.encode(bytes(self.jsonStorage[_slot].jsonBlob))
+                )
+            );
     }
 
-    function exists(bytes32 _slot) internal view returns (bool) {
-        return STORE.exists(_slot);
+    /**
+     * @notice Gets the raw JSON data for a slot
+     * @param self The Store struct
+     * @param _key The owner's address
+     * @param _slot The slot to retrieve
+     * @return string The raw JSON data
+     */
+    function get(Store storage self, address _key, bytes32 _slot) public view returns (string memory) {
+        if (!exists(self, _key, _slot)) revert JsonStore__SlotDoesNotExist();
+        return self.jsonStorage[_slot].jsonBlob;
     }
 
-    function uri(bytes32 _slot) internal view returns (string memory) {
-        return STORE.uri(_slot);
+    /**
+     * @notice Gets the number of prepaid slots for an address
+     * @param self The Store struct
+     * @param _key The address to check
+     * @return uint64 The number of prepaid slots
+     */
+    function prepaid(Store storage self, address _key) public view returns (uint64) {
+        return self.prepaidSlots[_key];
     }
 
-    function get(bytes32 _slot) internal view returns (string memory) {
-        return STORE.get(_slot);
+    /**
+     * @notice Checks if a slot exists in storage
+     * @param self The Store struct
+     * @param _slot The slot to check
+     * @return bool indicating if the slot exists
+     */
+    function exists(Store storage self, bytes32 _slot) public view returns (bool) {
+        return self.jsonStorage[_slot].exists;
     }
 
-    function prepaid() internal view returns (uint64) {
-        return STORE.prepaid();
+    /**
+     * @notice Gets the JSON data URI for a slot
+     * @param self The Store struct
+     * @param _slot The slot to retrieve
+     * @return string The JSON data URI
+     */
+    function uri(Store storage self, bytes32 _slot) public view returns (string memory) {
+        if (!exists(self, _slot)) revert JsonStore__SlotDoesNotExist();
+
+        return
+            string(
+                abi.encodePacked(
+                    "data:application/json;base64,",
+                    Base64.encode(bytes(self.jsonStorage[_slot].jsonBlob))
+                )
+            );
     }
 
-    function set(bytes32 _slot, string memory _jsonBlob) internal returns (bool) {
-        return STORE.set(_slot, _jsonBlob);
+    /**
+     * @notice Gets the raw JSON data for a slot
+     * @param self The Store struct
+     * @param _slot The slot to retrieve
+     * @return string The raw JSON data
+     */
+    function get(Store storage self, bytes32 _slot) public view returns (string memory) {
+        if (!exists(self, _slot)) revert JsonStore__SlotDoesNotExist();
+        return self.jsonStorage[_slot].jsonBlob;
     }
 
-    function clear(bytes32 _slot) internal returns (bool) {
-        return STORE.clear(_slot);
+    /**
+     * @notice Gets the number of prepaid slots for the caller
+     * @param self The Store struct
+     * @return uint64 The number of prepaid slots
+     */
+    function prepaid(Store storage self) public view returns (uint64) {
+        return self.prepaidSlots[msg.sender];
     }
 
-    function prepay(uint64 _numSlots) internal returns (bool) {
-        return STORE.prepay(_numSlots);
+    /**
+     * @notice Sets JSON data in a slot
+     * @param self The Store struct
+     * @param _slot The slot to store the data
+     * @param _jsonBlob The JSON data to store
+     * @return bool indicating success
+     */
+    function set(Store storage self, bytes32 _slot, string memory _jsonBlob) public returns (bool) {
+        if (bytes(_jsonBlob).length == 0) revert JsonStore__EmptyJson();
+        if (!JsonUtil.validate(_jsonBlob)) revert JsonStore__InvalidJson();
+        if (self.prepaidSlots[msg.sender] == 0) revert JsonStore__InsufficientPrepaidSlots();
+        if (self.jsonStorage[_slot].exists) revert JsonStore__SlotAlreadyExists();
+
+        self.jsonStorage[_slot] = JsonData({ jsonBlob: _jsonBlob, exists: true, owner: msg.sender });
+
+        self.prepaidSlots[msg.sender]--;
+        emit JsonStored(msg.sender, _slot);
+        return true;
+    }
+
+    function clear(Store storage self, bytes32 _slot) public returns (bool) {
+        if (!exists(self, msg.sender, _slot)) revert JsonStore__SlotDoesNotExist();
+
+        delete self.jsonStorage[_slot];
+        emit JsonCleared(msg.sender, _slot);
+        return true;
+    }
+
+    function prepay(Store storage self, address _owner, uint64 _numSlots) public {
+        self.prepaidSlots[_owner] += _numSlots;
+        emit SlotsPrepaid(_owner, _numSlots);
     }
 }
