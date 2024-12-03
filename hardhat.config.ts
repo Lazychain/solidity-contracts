@@ -78,12 +78,20 @@
 
 // export default config
 
-import { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-toolbox";
-import "@nomicfoundation/hardhat-ignition-ethers";
+import { HardhatUserConfig } from "hardhat/config"
+import "@nomicfoundation/hardhat-toolbox"
+import "@nomicfoundation/hardhat-ignition-ethers"
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.27",
-};
+	solidity: "0.8.27",
+	networks: {
+		hardhat: {
+			chainId: 1337,
+		},
+		lazy: {
+			url: "http://127.0.0.1:8545",
+		},
+	},
+}
 
-export default config;
+export default config
