@@ -15,12 +15,15 @@ contract MockFairyRing {
     error MockFairyRing__NoCommitmentFound();
     error MockFairyRing__CommitmentAlreadyRevealed();
     error MockFairyRing__UnRevealedCommitmentExist();
+    error OwnableInvalidOwner();
+    error OwnableUnauthorizedAccount();
 
     ///////////
     // EVENT //
     ///////////
     event RandomnessRevealed(address indexed operator, bytes32 indexed commitment, uint256 indexed blockHeight);
     event RandomnessCommited(address indexed operator, bytes32 indexed randomness, uint256 indexed blockHeight);
+    event OwnershipTransferred(address indexed newOwner);
 
     ////////////
     // STRUCT //
@@ -37,7 +40,7 @@ contract MockFairyRing {
     ///////////////////////////
     address public operator;
     uint256 public latestHeight;
-    bytes32 public latestRandomness;
+    bytes32 public latestRandom;
     mapping(address => Commitment) public operatorCommitment;
 
     constructor() {
@@ -82,7 +85,7 @@ contract MockFairyRing {
         // state change
         commitment.revealed = randomValue;
         commitment.isRevealed = true;
-        latestRandomness = randomValue;
+        latestRandom = randomValue;
         latestHeight = commitment.blockHeight;
 
         emit RandomnessRevealed(msg.sender, randomValue, latestHeight);
@@ -93,15 +96,31 @@ contract MockFairyRing {
      * @return The latest random value and its block height
      */
     function latestRandomnessWithHeight() external view returns (bytes32, uint256) {
-        return (latestRandomness, latestHeight);
+        return (latestRandom, latestHeight);
+    }
+
+    /**
+     * @notice Gets the latest randomness value
+     * @return The latest random value
+     */
+    function latestRandomnessHashOnly() external view returns (bytes32) {
+        return (latestRandom);
+    }
+
+    /**
+     * @notice Gets the latest randomness value and its block height
+     * @return The latest random value and its block height
+     */
+    function latestRandomness() external view returns (bytes32, uint256) {
+        return (latestRandom, latestHeight);
     }
 
     /**
      * @notice Gets the latest randomness value
      * @return Latest random value
      */
-    function getLatestRandomness() external view returns (bytes32) {
-        return latestRandomness;
+    function getLatestRandomness() external view returns (bytes32, uint256) {
+        return (latestRandom, uint256(latestRandom));
     }
 
     /**
@@ -112,4 +131,42 @@ contract MockFairyRing {
     function getRandomnessByAddress(address commiter) external view returns (uint256) {
         return uint256(operatorCommitment[commiter].revealed);
     }
+
+    // solhint-disable no-empty-blocks
+    function renounceOwnership() external view {
+        // TODO: we dont know what this function do.
+    }
+
+    // solhint-disable no-empty-blocks
+    function submitDecryptionKey(bytes memory encryptionKey, bytes memory decryptionKey, uint256 height) external {
+        // TODO: must be similar to revealRandomness().
+    }
+
+    // solhint-disable no-empty-blocks
+    function submitEncryptionKey(bytes memory encryptionKey) external {
+        // TODO: must be similar to commitRandomness()
+    }
+
+    /**
+     * @notice Who is the owner?
+     * @return The owner of the contract
+     */
+    function owner() external view returns (address) {
+        return operator;
+    }
+
+    /**
+     * @notice Change owner
+     * @param newOwner The new Owner
+     */
+    function transferOwnership(address newOwner) external {
+        if (msg.sender != operator) revert OwnableUnauthorizedAccount();
+        // Check if a smart contract calling -> 0 if EOA, >0 if smart contract
+        if (msg.sender.code.length > 0) {
+            revert OwnableInvalidOwner();
+        }
+        operator = newOwner;
+        emit OwnershipTransferred(newOwner);
+    }
 }
+
