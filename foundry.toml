@@ -3,15 +3,15 @@ solc_version = '0.8.24'
 src = "./contracts"
 test = 'test'
 script = 'script'
-out = "./build"
-libs = ['lib']
+out = "./out"
+libs = ['node_modules', 'lib']
+allow_paths = ["./node_modules"]
 remappings = [
     'forge-std/=lib/forge-std/src/',
     '@Lazychain/solidity-contracts/=./',
-    '@hyperlane-xyz/=node_modules/@hyperlane-xyz/',
     '@openzeppelin/=node_modules/@openzeppelin/',
 ]
-evm_version = 'cancun'
+evm_version = 'paris'
 extra_output = [
     "abi",
     "evm.bytecode",
@@ -23,7 +23,14 @@ deny_warnings = true
 fail_on_revert = true
 
 # Optimizer
+optimizer = true
 optimizer_runs = 200
+
+# Write permission for JsonStore
+fs_permissions = [
+    { access = "write", path = "./src/contracts/utils/JsonStore.sol" },
+]
+ignored_warnings_from = ['lib', 'test', 'contracts/test']
 
 # [model_checker]
 # contracts = { "contracts/apps/lottery/Lottery.sol" = ["Lottery"] }
@@ -37,7 +44,8 @@ gas_price = 0
 threads = 0                        # zero specifies the number of logical cores.
 
 [fuzz]
-runs = 1000
+runs = 50
+dictionary_weight = 80
 
 [invariant]
 runs = 1000
@@ -55,3 +63,6 @@ quote_style = 'double'
 [doc]
 out = 'docs'
 title = 'Lazychain Smart Contract Documentation'
+
+[profile.ci]
+verbosity = 4

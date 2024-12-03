@@ -115,7 +115,6 @@ contract NFTLottery {
      */
 
     constructor(address _decrypter, uint256 _fee, uint8 _threshold, address _fairyringContract, address _nftContract) {
-
         if (_threshold >= 100) revert InvalidThreshold();
 
         nftContract = IERC721Enumerable(_nftContract);
@@ -239,6 +238,10 @@ contract NFTLottery {
         return totalDraws;
     }
 
+    function campaign() public view returns (bool) {
+        return campaignFinalized;
+    }
+
     // QUERY:ANYONE:getPlayerName() -> Result(name: string)
     function getPlayerName(address player) public view returns (string memory) {
         UserNameSpace storage userSpace = userDetails[player];
@@ -297,7 +300,6 @@ contract NFTLottery {
 
         uint256 lenght = nameBytes.length;
         for (uint256 i = 0; i < lenght; ++i) {
-
             bytes1 char = nameBytes[i];
 
             // Check if the character is a valid UTF-8 character
