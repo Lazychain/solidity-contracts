@@ -45,6 +45,7 @@ contract NFTLottery {
     error InvalidCharactersInNickname();
     error NoNicknameSet();
     error TooFewNFTs();
+    error TooFewPooPoints();
 
     /**
      * @dev There's no code at `target` (it is not a contract).
@@ -58,6 +59,8 @@ contract NFTLottery {
         uint256 drawsCount; // How many times the user have draw
         uint256 winCount; // How many times the user have win
         uint256 height; // Last user height registered to avoid multiple draw calls on the same height.
+        uint256 pooPoints; // Points accumulated by the user
+        uint256 charcoalPoints; // for future
     }
 
     mapping(address => UserNameSpace) public userDetails; //other details of users
@@ -169,6 +172,11 @@ contract NFTLottery {
         if (userGuess > 100) revert GuessValueOutOfRange();
         _noContractCall();
 
+        // Check if there are NFTs remaining
+        if (nextNftId >= maxNfts) {
+            revert TooFewNFTs();
+        }
+
         // check user pre-conditions
         UserNameSpace storage user = userDetails[msg.sender];
 
@@ -197,6 +205,8 @@ contract NFTLottery {
 
         ++user.drawsCount;
         ++totalDraws;
+        ++user.pooPoints;
+        ++user.charcoalPoints;
 
         if (isWinner) {
             // Select and transfer a random NFT
@@ -220,6 +230,39 @@ contract NFTLottery {
 
         return isWinner;
     }
+
+    function claimNFT() public payable {
+        
+        if (campaignFinalized) revert CampaignOver();
+        if (msg.value < fee) revert InsufficientFundsSent();
+
+        UserNameSpace storage user = userDetails[msg.sender];
+
+        // Check if the user has enough poo points
+        if (user.pooPoints < 100) {
+            revert TooFewPooPoints();
+        }
+
+        // Check if there are NFTs remaining
+        if (nextNftId >= maxNfts) {
+            revert TooFewNFTs();
+        }
+
+        // Deduct 100 poo points
+        user.pooPoints -= 100;
+        userDetails[msg.sender] = user;
+
+        // Transfer NFT to the user
+        uint256 nftId = nextNftId;
+        nftContract.transferFrom(address(this), msg.sender, nftId);
+        ++nextNftId;
+
+        // End the campaign if all NFTs are claimed
+        if (nextNftId >= maxNfts) {
+            finalizeCampaign();
+        }
+    }
+
 
     // EXECUTE:ANYONE:setPlayerName(name: string) -> Result((), error)
     //  use info.address and set name in a Map{address: name}
