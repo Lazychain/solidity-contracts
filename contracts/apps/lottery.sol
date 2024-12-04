@@ -196,12 +196,8 @@ contract NFTLottery {
         //     revert NoNicknameSet();
         // }
 
-        (bytes32 randomSeed, ) = fairyringContract.latestRandomness();
-        uint256 randomValue = uint256(randomSeed);
-
-        uint256 randomNumber = randomValue % threshold;
-
-        bool isWinner = (userGuess % threshold) == randomNumber;
+        (bytes32 randomSeed, uint256 randomValue) = fairyringContract.latestRandomness();
+        bool isWinner = (userGuess % threshold) == (randomValue % threshold);
 
         ++user.drawsCount;
         ++totalDraws;
@@ -384,3 +380,4 @@ contract NFTLottery {
         }
     }
 }
+
