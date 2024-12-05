@@ -6,6 +6,9 @@ import { Strings } from "../utils/Strings.sol";
 import { ITokenMetadata } from "../interfaces/metadata/ITokenMetadata.sol";
 
 library TokenMetadataReader {
+    error TokenDoesNotExist(uint256 tokenId);
+    error InvalidMetadata(uint256 tokenId);
+
     function exists(address _tokenAddress, uint256 _tokenId) internal view returns (bool) {
         return ITokenMetadata(_tokenAddress).exists(_tokenId);
     }
