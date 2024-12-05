@@ -31,7 +31,7 @@ fs_permissions = [
     { access = "write", path = "./src/contracts/utils/JsonStore.sol" },
 ]
 ignored_warnings_from = ['lib', 'test', 'contracts/test']
-
+via_ir = true
 # [model_checker]
 # contracts = { "contracts/apps/lottery/Lottery.sol" = ["Lottery"] }
 # engine = 'chc'
