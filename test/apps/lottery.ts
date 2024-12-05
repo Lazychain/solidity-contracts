@@ -38,31 +38,131 @@ describe("Lottery", async function () {
 		const nftInitParams = [owner, "LazyNFT", "LNT"]
 		nftContract = (await ethers.deployContract("LazyNFT", nftInitParams, owner)) as LazyNFT
 
-		// mint 1 nft, but fail testing TooFewNFTs, maybe we need to move that check
-		await nftContract.safeMint(owner.address)
-		expect(await nftContract.ownerOf(0)).to.equal(owner.address)
+		// mint 4 NFTs, will be used for differents probabilities chances
+		for (let i = 0; i < 4; i++) {
+			await nftContract.connect(owner).safeMint(owner.address)
+		}
+		const total_supply = await nftContract.totalSupply()
+		expect(total_supply).to.be.equal(4)
 
 		const lotteryInitParams = [
 			mockFairyRingContract.target,
 			fees,
 			factor,
 			mockFairyRingContract.target,
-			nftContract.getAddress(),
+			nftContract,
 		]
 		lotteryContract = (await ethers.deployContract("NFTLottery", lotteryInitParams, owner)) as NFTLottery
+
+		// Give permissiont to nftContract to Transfer Ownership
+		const result: ContractTransactionResponse = await nftContract
+			.connect(owner)
+			.setApprovalForAll(lotteryContract, true)
+		await result.wait()
+		const check = await nftContract.connect(owner).isApprovedForAll(owner, lotteryContract)
+		expect(check).to.be.equal(true)
+
+		// Transfer all
+		for (let i = 0; i < 4; i++) {
+			await nftContract.transferFrom(owner, lotteryContract, i)
+		}
 	})
 
 	describe("Deployment", () => {
-		it("Should set the right owner", async () => {
-			expect(await lotteryContract.owner()).to.equal(owner.address)
+		it("Should be the right owner", async () => {
+			const lottery_owner = await lotteryContract.connect(owner).owner()
+			expect(lottery_owner).to.equal(owner.address)
 		})
 
 		it("Should start with zero total_draws", async () => {
-			expect(await lotteryContract.totaldraws()).to.equal(0)
+			const total_draws = await lotteryContract.connect(owner).totaldraws()
+			expect(total_draws).to.equal(0)
 		})
 
 		it("Should start campaign paused", async () => {
-			expect(await lotteryContract.campaign()).to.equal(true)
+			const campaign = await lotteryContract.connect(owner).campaign()
+			expect(campaign).to.equal(true)
+		})
+
+		it("Should only allow owner claim()", async () => {
+			await expect(await lotteryContract.connect(owner).claim()).to.be.not.reverted
+		})
+
+		it("Should not allow anyone claim()", async () => {
+			await expect(lotteryContract.connect(hacker).claim()).to.be.reverted
+		})
+
+		it("Should not allow anyone claimNFT() if has not enough points", async () => {
+			// Start campaign
+			await lotteryContract.connect(owner).startCampaign()
+			const campaign = await lotteryContract.campaign()
+			expect(campaign).to.equal(false)
+
+			// hacker try to claimNFT
+			await expect(lotteryContract.connect(hacker).claimNFT({ value: 1000 })).to.be.reverted
+		})
+
+		it("Should not allow anyone claimNFT() if not send funds", async () => {
+			// Start campaign
+			await lotteryContract.connect(owner).startCampaign()
+			const campaign = await lotteryContract.campaign()
+			expect(campaign).to.equal(false)
+
+			// 100 draws always failing
+			const random = new Uint256("20")
+			const guessNumber = new Uint256("19")
+			await mockFairyRingContract.mock.latestRandomness.returns(random.toBytes().val, random.val)
+			// draws here to get to 100 points
+			for (let i = 0; i < 100; i++) {
+				const result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: 1000 })
+				const transactionReceipt = (await result.wait())!
+				expect(transactionReceipt?.status).to.equal(1)
+			}
+
+			// user claimNFT() but no funds sends
+			await expect(lotteryContract.connect(user1).claimNFT()).to.be.reverted
+		})
+
+		it("Should allow anyone claimNFT() with funds and 100 points", async () => {
+			// Start campaign
+			await lotteryContract.connect(owner).startCampaign()
+			const campaign = await lotteryContract.campaign()
+			expect(campaign).to.equal(false)
+
+			// 100 draws always failing
+			const random = new Uint256("20")
+			const guessNumber = new Uint256("19")
+			await mockFairyRingContract.mock.latestRandomness.returns(random.toBytes().val, random.val)
+			// draws here to get to 100 points
+			for (let i = 0; i < 100; i++) {
+				const result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: 1000 })
+				const transactionReceipt = (await result.wait())!
+
+				// should succeed
+				expect(transactionReceipt?.status).to.equal(1)
+
+				// the user should have failed ( 20 != 19)
+				const resultEvents = (
+					await lotteryContract.connect(user1).queryFilter(lotteryContract.filters.LotteryDrawn)
+				)[0].args
+				expect(resultEvents[1]).to.be.equal(false)
+
+				// Total Draws should be equal to i
+				const total_draws = await lotteryContract.connect(user1).totaldraws()
+				expect(total_draws).to.equal(i + 1)
+
+				// User points should be equal to i
+				const points = await lotteryContract.connect(user1).points()
+				expect(points).to.equal(i + 1)
+			}
+
+			// user claimNFT()
+			const points = await lotteryContract.connect(user1).points()
+			expect(points).to.equal(100)
+			await expect(lotteryContract.connect(user1).claimNFT({ value: 1000 })).to.not.be.reverted
+
+			// try to claim again you cheater
+			await expect(lotteryContract.connect(user1).claimNFT({ value: 1000 })).to.be.reverted
 		})
 	})
 
@@ -70,11 +170,6 @@ describe("Lottery", async function () {
 		it("Player draw successful", async function () {
 			// Given a started campaign
 			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
-
-			// and player name
-			result = await lotteryContract.connect(user1).setPlayerName("pla.fun")
-			let transactionReceipt: ContractTransactionReceipt = (await result.wait(1))!
-			expect(transactionReceipt?.status).to.equal(1)
 
 			// and a randomness contract that return 20 as random number
 			const random = new Uint256("20")
@@ -84,7 +179,7 @@ describe("Lottery", async function () {
 			const guessNumber = new Uint256("20")
 			const funds = 1000
 			result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })
-			transactionReceipt = (await result.wait())!
+			const transactionReceipt = (await result.wait())!
 			const resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[0].args
 			const expected = true
 
@@ -102,11 +197,6 @@ describe("Lottery", async function () {
 			// Given a started campaign
 			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
 
-			// and player name
-			result = await lotteryContract.connect(user1).setPlayerName("pla.fun")
-			let transactionReceipt: ContractTransactionReceipt = (await result.wait(1))!
-			expect(transactionReceipt?.status).to.equal(1)
-
 			// and a randomness contract that return 20 as random number
 			const random = new Uint256("20")
 			await mockFairyRingContract.mock.latestRandomness.returns(random.toBytes().val, random.val)
@@ -115,7 +205,7 @@ describe("Lottery", async function () {
 			const guessNumber = new Uint256("19")
 			const funds = 1000
 			result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })
-			transactionReceipt = (await result.wait())!
+			const transactionReceipt = (await result.wait())!
 			const resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[0].args
 			const expected = false
 
@@ -129,21 +219,4 @@ describe("Lottery", async function () {
 			expect(resultEvents[1]).to.be.equal(expected)
 		})
 	})
-
-	describe("PlayersName", function () {
-		// setPlayerName(string memory name)
-		it("Player Name set should be with maximun 7 chars long utf8 with . allowed", async function () {
-			// Given a player name
-			const playerName = "pla.fun"
-
-			// When a player set a valid nick
-			const result: ContractTransactionResponse = await lotteryContract.connect(user1).setPlayerName(playerName)
-
-			const transactionReceipt = await result.wait(1)
-			// Then it should sucessfuly set.
-			expect(transactionReceipt?.status).to.equal(1)
-		})
-		// getPlayerName(address player)
-	})
 })
-
