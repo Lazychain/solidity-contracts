@@ -55,12 +55,10 @@ contract NFTLottery {
 
     /// @notice Represents a user name space entry and data
     struct UserNameSpace {
-        string nickName; // Nick name of the user
         uint256 drawsCount; // How many times the user have draw
         uint256 winCount; // How many times the user have win
         uint256 height; // Last user height registered to avoid multiple draw calls on the same height.
         uint256 pooPoints; // Points accumulated by the user
-        uint256 charcoalPoints; // for future
     }
 
     mapping(address => UserNameSpace) public userDetails; //other details of users
@@ -100,13 +98,6 @@ contract NFTLottery {
 
     /// @notice Maximum number of NFTs minted
     uint256 public maxNfts;
-
-    /// @notice holds the best users based on their win count
-    // TODO: what if two guys have same win count? we should give priority to the
-    //       one with less draws as he has a better winning rate
-    //       We need to see if that logic can be added
-    using PriorityQueue for PriorityQueue.Queue;
-    PriorityQueue.Queue private _leaderboard;
 
     /**
      * @notice Initializes the lottery with a decryption contract and a fee.
@@ -202,7 +193,6 @@ contract NFTLottery {
         ++user.drawsCount;
         ++totalDraws;
         ++user.pooPoints;
-        ++user.charcoalPoints;
 
         if (isWinner) {
             // Select and transfer a random NFT
@@ -211,8 +201,6 @@ contract NFTLottery {
 
             ++user.winCount;
             ++nextNftId;
-            //a potential top10, so insert him
-            _leaderboard.insert(msg.sender, user.winCount);
 
             if (nextNftId >= maxNfts) {
                 // End the campaign if all NFTs are used
@@ -227,8 +215,13 @@ contract NFTLottery {
         return isWinner;
     }
 
+    // QUERY:ANYONE:total_draws() -> Result(count: number)
+    function points() public view returns (uint256) {
+        UserNameSpace storage user = userDetails[msg.sender];
+        return user.pooPoints;
+    }
+
     function claimNFT() public payable {
-        
         if (campaignFinalized) revert CampaignOver();
         if (msg.value < fee) revert InsufficientFundsSent();
 
@@ -259,19 +252,6 @@ contract NFTLottery {
         }
     }
 
-
-    // EXECUTE:ANYONE:setPlayerName(name: string) -> Result((), error)
-    //  use info.address and set name in a Map{address: name}
-    function setPlayerName(string memory name) public {
-        _isValidNickname(name);
-
-        UserNameSpace storage userSpace = userDetails[msg.sender];
-
-        userSpace.nickName = name;
-        userDetails[msg.sender] = userSpace;
-        emit PlayerNameSet(msg.sender, name);
-    }
-
     // QUERY:ANYONE:total_draws() -> Result(count: number)
     function totaldraws() public view returns (uint256) {
         return totalDraws;
@@ -281,82 +261,11 @@ contract NFTLottery {
         return campaignFinalized;
     }
 
-    // QUERY:ANYONE:getPlayerName() -> Result(name: string)
-    function getPlayerName(address player) public view returns (string memory) {
-        UserNameSpace storage userSpace = userDetails[player];
-        return userSpace.nickName;
-    }
-
-    function dashboard() public view returns (UserNameSpace[10] memory) {
-        return _getTop10Winners();
-    }
-
-    // TODO: move this code inside PriorityQueue as a Query top `n` registries.
-    function _getTop10Winners() private view returns (UserNameSpace[10] memory) {
-        UserNameSpace[10] memory top10winners;
-        // Extract the top 10 winners from the priority queue
-        // PriorityQueue.Queue memory tempQueue = _leaderboard.copy();
-        // or use the assembly copy if there is significant gas
-
-        // Since we dont mutate the leaderboard, just get values, we dont need to copy().
-        uint256 lenght = _leaderboard.heap.length;
-        for (uint256 i = 0; i < 10 && lenght > 0; ++i) {
-            address winnerAddress = _leaderboard.heap[i].value;
-            if (winnerAddress != address(0)) {
-                UserNameSpace storage winner = userDetails[winnerAddress];
-                top10winners[i] = winner; // Add the winner to the result array
-            } else {
-                // case where no more address in the priority queue
-                // maybe we could do this directly on the PriorityQueue struct.
-                break;
-            }
-        }
-
-        return top10winners;
-    }
-
     function _getMaxNFTs() private view returns (uint256) {
         try nftContract.totalSupply() returns (uint256 totalSupply) {
             return totalSupply;
         } catch {
             revert NFTContractDoesNotSupportTotalSupply();
-        }
-    }
-
-    function _isValidNickname(string memory name) internal view {
-        bytes memory nameBytes = bytes(name);
-
-        if (nameBytes.length == 0) {
-            revert NoNicknameSet();
-        }
-
-        if (nameBytes.length > maxNicknameLen) {
-            revert NicknameTooLong();
-        }
-        if (nameBytes.length <= minNicknameLen) {
-            revert NicknameTooShort();
-        }
-
-        uint256 lenght = nameBytes.length;
-        for (uint256 i = 0; i < lenght; ++i) {
-            bytes1 char = nameBytes[i];
-
-            // Check if the character is a valid UTF-8 character
-            if (!(char >= 0x20 && char <= 0x7E)) {
-                // Basic printable ASCII range
-                revert InvalidCharactersInNickname();
-            }
-
-            // Allow only letters, digits, '.', and '-'
-            if (
-                !(char >= "a" && char <= "z") &&
-                !(char >= "A" && char <= "Z") &&
-                !(char >= "0" && char <= "9") &&
-                char != "." &&
-                char != "-"
-            ) {
-                revert InvalidCharactersInNickname();
-            }
         }
     }
 
@@ -380,4 +289,3 @@ contract NFTLottery {
         }
     }
 }
-
