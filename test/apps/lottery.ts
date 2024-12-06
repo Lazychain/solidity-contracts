@@ -4,9 +4,8 @@ import { NFTLottery, LazyNFT } from "typechain-types"
 import MockFairyJson from "../../artifacts/contracts/apps/mocks/fairyring.sol/MockFairyRing.json"
 import { deployMockContract, MockContract } from "@clrfund/waffle-mock-contract"
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers"
-import { ContractTransactionReceipt, ContractTransactionResponse, EventLog, Log } from "ethers"
-import { Bytes32, Uint256, Uint32, Address } from "soltypes"
-import { Buffer } from "buffer"
+import { ContractTransactionResponse } from "ethers"
+import { Uint256 } from "soltypes"
 
 function getRandomIntModulo(max: number): Uint256 {
 	// Get a large random number (e.g., using a cryptographically secure random number generator)
@@ -23,34 +22,34 @@ describe("Lottery", async function () {
 
 	let owner: SignerWithAddress
 	let user1: SignerWithAddress
-	let user2: SignerWithAddress
 	let hacker: SignerWithAddress
 	const fees: number = 200
-	const factor: number = 20
+	const NFT_CAP = 16 // 0..15
+	const factor = 1
 
 	beforeEach(async function () {
-		;[owner, user1, user2, hacker] = await ethers.getSigners()
+		;[owner, user1, hacker] = await ethers.getSigners()
 		// const balance0ETH = await ethers.provider.getBalance(owner.address)
 
 		mockFairyRingContract = await deployMockContract(owner, MockFairyJson.abi)
 
 		// Test TooFewNFTs
-		const nftInitParams = [owner, "LazyNFT", "LNT"]
+		const nftInitParams = [owner, "LazyNFT", "LNT", NFT_CAP]
 		nftContract = (await ethers.deployContract("LazyNFT", nftInitParams, owner)) as LazyNFT
 
-		// mint 4 NFTs, will be used for differents probabilities chances
-		for (let i = 0; i < 4; i++) {
+		// mint NFT_CAP NFTs, will be used for differents probabilities chances
+		for (let i = 0; i < NFT_CAP; i++) {
 			await nftContract.connect(owner).safeMint(owner.address)
 		}
 		const total_supply = await nftContract.totalSupply()
-		expect(total_supply).to.be.equal(4)
+		expect(total_supply).to.be.equal(NFT_CAP)
 
 		const lotteryInitParams = [
 			mockFairyRingContract.target,
 			fees,
-			factor,
 			mockFairyRingContract.target,
 			nftContract,
+			factor,
 		]
 		lotteryContract = (await ethers.deployContract("NFTLottery", lotteryInitParams, owner)) as NFTLottery
 
@@ -63,7 +62,7 @@ describe("Lottery", async function () {
 		expect(check).to.be.equal(true)
 
 		// Transfer all
-		for (let i = 0; i < 4; i++) {
+		for (let i = 0; i < NFT_CAP; i++) {
 			await nftContract.transferFrom(owner, lotteryContract, i)
 		}
 	})
@@ -83,7 +82,9 @@ describe("Lottery", async function () {
 			const campaign = await lotteryContract.connect(owner).campaign()
 			expect(campaign).to.equal(true)
 		})
+	})
 
+	describe("Owner", () => {
 		it("Should only allow owner claim()", async () => {
 			await expect(await lotteryContract.connect(owner).claim()).to.be.not.reverted
 		})
@@ -91,7 +92,9 @@ describe("Lottery", async function () {
 		it("Should not allow anyone claim()", async () => {
 			await expect(lotteryContract.connect(hacker).claim()).to.be.reverted
 		})
+	})
 
+	describe("claimNFT", () => {
 		it("Should not allow anyone claimNFT() if has not enough points", async () => {
 			// Start campaign
 			await lotteryContract.connect(owner).startCampaign()
@@ -110,13 +113,15 @@ describe("Lottery", async function () {
 
 			// 100 draws always failing
 			const random = new Uint256("20")
-			const guessNumber = new Uint256("19")
+			const guessNumber = new Uint256("0") // We ensure that is not in the range of 4 abs
 			await mockFairyRingContract.mock.latestRandomness.returns(random.toBytes().val, random.val)
 			// draws here to get to 100 points
 			for (let i = 0; i < 100; i++) {
 				const result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: 1000 })
 				const transactionReceipt = (await result.wait())!
 				expect(transactionReceipt?.status).to.equal(1)
+				const resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[0].args
+				expect(resultEvents[1]).to.be.equal(false) // Ensure that the user fail
 			}
 
 			// user claimNFT() but no funds sends
@@ -131,7 +136,7 @@ describe("Lottery", async function () {
 
 			// 100 draws always failing
 			const random = new Uint256("20")
-			const guessNumber = new Uint256("19")
+			const guessNumber = new Uint256("0") // ensure abs < 4
 			await mockFairyRingContract.mock.latestRandomness.returns(random.toBytes().val, random.val)
 			// draws here to get to 100 points
 			for (let i = 0; i < 100; i++) {
@@ -167,7 +172,7 @@ describe("Lottery", async function () {
 	})
 
 	describe("Draw", function () {
-		it("Player draw successful", async function () {
+		it("Player draw successful First Prize", async function () {
 			// Given a started campaign
 			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
 
@@ -181,16 +186,176 @@ describe("Lottery", async function () {
 			result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })
 			const transactionReceipt = (await result.wait())!
 			const resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[0].args
-			const expected = true
+			// Then tx should succeed
+			expect(transactionReceipt?.status).to.equal(1)
+
+			// and since both user and random are range 1, must minted
+			expect(resultEvents[1]).to.be.equal(true)
+
+			// and nftId should be Case 1: 0..0
+			expect(resultEvents[2]).to.be.equal(0)
+
+			// and total draws equals 1
+			expect(resultEvents[3]).to.be.equal(1)
+		})
+
+		it("Player draw successful All Prizes", async function () {
+			// Given a started campaign
+			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
+
+			// and a randomness contract that return 20 as random number
+			const random = new Uint256("20")
+			await mockFairyRingContract.mock.latestRandomness.returns(random.toBytes().val, random.val)
+
+			// When a player draw give a 20 as random number
+			const guessNumber = new Uint256("20")
+			const funds = 1000
+			result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })
+			let transactionReceipt = (await result.wait())!
+			let resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[0].args
+			// Then tx should succeed
+			expect(transactionReceipt?.status).to.equal(1)
+
+			// and since both user and random are range 1, must minted
+			expect(resultEvents[1]).to.be.equal(true)
+
+			// and nftId should be Case 1: 0..0
+			expect(resultEvents[2]).to.be.equal(0)
+
+			// and total draws equals 1
+			expect(resultEvents[3]).to.be.equal(1)
+
+			// Now try again, we should win Case2
+			for (let i = 1; i < 3; i++) {
+				result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })
+				transactionReceipt = (await result.wait())!
+				resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[i].args
+				// Then tx should succeed
+				expect(transactionReceipt?.status).to.equal(1)
+
+				// and since both user and random are same, but no Case 1, case 2 must minted
+				expect(resultEvents[1]).to.be.equal(true)
+
+				// and nftId should be Case 2: 1..2
+				expect(resultEvents[2]).to.be.equal(i)
+			}
+
+			// Now try again, we should win Case3
+			for (let i = 3; i < 8; i++) {
+				result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })
+				transactionReceipt = (await result.wait())!
+				resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[i].args
+				// Then tx should succeed
+				expect(transactionReceipt?.status).to.equal(1)
+
+				// and since both user and random are same, but no Case 1, case 2 must minted
+				expect(resultEvents[1]).to.be.equal(true)
+
+				// and nftId should be Case 3: 3..7
+				expect(resultEvents[2]).to.be.equal(i)
+			}
+
+			// Now try again, we should win Case4
+			for (let i = 7; i < 15; i++) {
+				result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })
+				transactionReceipt = (await result.wait())!
+				resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[i].args
+				// Then tx should succeed
+				expect(transactionReceipt?.status).to.equal(1)
+
+				// and since both user and random are same, but no Case 1, case 2 must minted
+				expect(resultEvents[1]).to.be.equal(true)
+
+				// and nftId should be Case 3: 7..15
+				expect(resultEvents[2]).to.be.equal(i)
+			}
+
+			// Now we own the collection, lets try one more claim
+			await expect(lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })).to.be.reverted
+		})
+
+		it("Player draw successful Second Prize", async function () {
+			// Given a started campaign
+			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
+
+			// and a randomness contract that return 20 as random number
+			const random = new Uint256("20")
+			await mockFairyRingContract.mock.latestRandomness.returns(random.toBytes().val, random.val)
+
+			// When a player draw give a 19 as random number
+			const guessNumber = new Uint256("19")
+			const funds = 1000
+			result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })
+			const transactionReceipt = (await result.wait())!
+			const resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[0].args
 
 			// Then tx should succeed
 			expect(transactionReceipt?.status).to.equal(1)
 
-			// and totalDrwas must be 1
+			// and since both user and random are range 1, must minted
+			expect(resultEvents[1]).to.be.equal(true)
+
+			// and nftId should be Case 2: 1..2
 			expect(resultEvents[2]).to.be.equal(1)
 
-			// and since both user and random are the same
-			expect(resultEvents[1]).to.be.equal(expected)
+			// and total draws equals 1
+			expect(resultEvents[3]).to.be.equal(1)
+		})
+
+		it("Player draw successful Third Prize", async function () {
+			// Given a started campaign
+			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
+
+			// and a randomness contract that return 20 as random number
+			const random = new Uint256("20")
+			await mockFairyRingContract.mock.latestRandomness.returns(random.toBytes().val, random.val)
+
+			// When a player draw give a 18 as random number
+			const guessNumber = new Uint256("18")
+			const funds = 1000
+			result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })
+			const transactionReceipt = (await result.wait())!
+			const resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[0].args
+
+			// Then tx should succeed
+			expect(transactionReceipt?.status).to.equal(1)
+
+			// and since both user and random are range 1, must minted
+			expect(resultEvents[1]).to.be.equal(true)
+
+			// and nftId should be Case 3: 3..6
+			expect(resultEvents[2]).to.be.equal(3)
+
+			// and total draws equals 1
+			expect(resultEvents[3]).to.be.equal(1)
+		})
+
+		it("Player draw successful Four Prize", async function () {
+			// Given a started campaign
+			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
+
+			// and a randomness contract that return 20 as random number
+			const random = new Uint256("20")
+			await mockFairyRingContract.mock.latestRandomness.returns(random.toBytes().val, random.val)
+
+			// When a player draw give a 17 as random number
+			const guessNumber = new Uint256("17")
+			const funds = 1000
+			result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })
+			const transactionReceipt = (await result.wait())!
+			const resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[0].args
+
+			// Then tx should succeed
+			expect(transactionReceipt?.status).to.equal(1)
+
+			// and since both user and random are range 1, must minted
+			expect(resultEvents[1]).to.be.equal(true)
+
+			// and nftId should be Case 4: 7..15
+			expect(resultEvents[2]).to.be.equal(7)
+
+			// and total draws equals 1
+			expect(resultEvents[3]).to.be.equal(1)
 		})
 
 		it("Player draw fail", async function () {
@@ -207,7 +372,7 @@ describe("Lottery", async function () {
 			result = await lotteryContract.connect(user1).draw(guessNumber.val, { value: funds })
 			const transactionReceipt = (await result.wait())!
 			const resultEvents = (await lotteryContract.queryFilter(lotteryContract.filters.LotteryDrawn))[0].args
-			const expected = false
+			const expected = true
 
 			// Then tx should succeed
 			expect(transactionReceipt?.status).to.equal(1)
