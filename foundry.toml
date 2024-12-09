@@ -10,6 +10,7 @@ remappings = [
     'forge-std/=lib/forge-std/src/',
     '@Lazychain/solidity-contracts/=./',
     '@openzeppelin/=node_modules/@openzeppelin/',
+    'erc721a/=node_modules/erc721a/',
 ]
 evm_version = 'paris'
 extra_output = [
@@ -32,6 +33,7 @@ fs_permissions = [
 ]
 ignored_warnings_from = ['lib', 'test', 'contracts/test']
 via_ir = true
+
 # [model_checker]
 # contracts = { "contracts/apps/lottery/Lottery.sol" = ["Lottery"] }
 # engine = 'chc'

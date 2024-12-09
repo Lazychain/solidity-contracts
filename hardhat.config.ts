@@ -8,7 +8,7 @@
 // // import "@typechain/hardhat"
 // // import "hardhat-gas-reporter"
 // // import "solidity-coverage"
-// // 
+// //
 // // import "@nomicfoundation/hardhat-toolbox"
 
 // // import "hardhat-deploy"
@@ -83,7 +83,16 @@ import "@nomicfoundation/hardhat-toolbox"
 import "@nomicfoundation/hardhat-ignition-ethers"
 
 const config: HardhatUserConfig = {
-	solidity: "0.8.27",
+	solidity: {
+		version: "0.8.27",
+		settings: {
+			optimizer: {
+				enabled: true,
+				runs: 100,
+			},
+			viaIR: true,
+		},
+	},
 	networks: {
 		hardhat: {
 			chainId: 1337,

@@ -34,13 +34,11 @@ describe("Lottery", async function () {
 		mockFairyRingContract = await deployMockContract(owner, MockFairyJson.abi)
 
 		// Test TooFewNFTs
-		const nftInitParams = [owner, "LazyNFT", "LNT", NFT_CAP]
+		const nftInitParams = ["LazyNFT", "LNT", NFT_CAP + 1, "ipfs://hash/"]
 		nftContract = (await ethers.deployContract("LazyNFT", nftInitParams, owner)) as LazyNFT
 
 		// mint NFT_CAP NFTs, will be used for differents probabilities chances
-		for (let i = 0; i < NFT_CAP; i++) {
-			await nftContract.connect(owner).safeMint(owner.address)
-		}
+		await nftContract.connect(owner).mint(NFT_CAP)
 		const total_supply = await nftContract.totalSupply()
 		expect(total_supply).to.be.equal(NFT_CAP)
 
@@ -78,28 +76,28 @@ describe("Lottery", async function () {
 			expect(total_draws).to.equal(0)
 		})
 
-		it("Should start campaign paused", async () => {
+		it("Should start campaign not open", async () => {
 			const campaign = await lotteryContract.connect(owner).campaign()
-			expect(campaign).to.equal(true)
+			expect(campaign).to.equal(false)
 		})
 	})
 
 	describe("Owner", () => {
-		it("Should only allow owner claim()", async () => {
-			await expect(await lotteryContract.connect(owner).claim()).to.be.not.reverted
+		it("Should only allow owner withdraw()", async () => {
+			await expect(await lotteryContract.connect(owner).withdraw()).to.be.not.reverted
 		})
 
-		it("Should not allow anyone claim()", async () => {
-			await expect(lotteryContract.connect(hacker).claim()).to.be.reverted
+		it("Should not allow anyone withdraw()", async () => {
+			await expect(lotteryContract.connect(hacker).withdraw()).to.be.reverted
 		})
 	})
 
 	describe("claimNFT", () => {
 		it("Should not allow anyone claimNFT() if has not enough points", async () => {
 			// Start campaign
-			await lotteryContract.connect(owner).startCampaign()
+			await lotteryContract.connect(owner).setCampaign(true)
 			const campaign = await lotteryContract.campaign()
-			expect(campaign).to.equal(false)
+			expect(campaign).to.equal(true)
 
 			// hacker try to claimNFT
 			await expect(lotteryContract.connect(hacker).claimNFT({ value: 1000 })).to.be.reverted
@@ -107,9 +105,9 @@ describe("Lottery", async function () {
 
 		it("Should not allow anyone claimNFT() if not send funds", async () => {
 			// Start campaign
-			await lotteryContract.connect(owner).startCampaign()
+			await lotteryContract.connect(owner).setCampaign(true)
 			const campaign = await lotteryContract.campaign()
-			expect(campaign).to.equal(false)
+			expect(campaign).to.equal(true)
 
 			// 100 draws always failing
 			const random = new Uint256("20")
@@ -130,9 +128,9 @@ describe("Lottery", async function () {
 
 		it("Should allow anyone claimNFT() with funds and 100 points", async () => {
 			// Start campaign
-			await lotteryContract.connect(owner).startCampaign()
+			await lotteryContract.connect(owner).setCampaign(true)
 			const campaign = await lotteryContract.campaign()
-			expect(campaign).to.equal(false)
+			expect(campaign).to.equal(true)
 
 			// 100 draws always failing
 			const random = new Uint256("20")
@@ -174,7 +172,7 @@ describe("Lottery", async function () {
 	describe("Draw", function () {
 		it("Player draw successful First Prize", async function () {
 			// Given a started campaign
-			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
+			let result: ContractTransactionResponse = await lotteryContract.connect(owner).setCampaign(true)
 
 			// and a randomness contract that return 20 as random number
 			const random = new Uint256("20")
@@ -201,7 +199,7 @@ describe("Lottery", async function () {
 
 		it("Player draw successful All Prizes", async function () {
 			// Given a started campaign
-			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
+			let result: ContractTransactionResponse = await lotteryContract.connect(owner).setCampaign(true)
 
 			// and a randomness contract that return 20 as random number
 			const random = new Uint256("20")
@@ -276,7 +274,7 @@ describe("Lottery", async function () {
 
 		it("Player draw successful Second Prize", async function () {
 			// Given a started campaign
-			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
+			let result: ContractTransactionResponse = await lotteryContract.connect(owner).setCampaign(true)
 
 			// and a randomness contract that return 20 as random number
 			const random = new Uint256("20")
@@ -304,7 +302,7 @@ describe("Lottery", async function () {
 
 		it("Player draw successful Third Prize", async function () {
 			// Given a started campaign
-			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
+			let result: ContractTransactionResponse = await lotteryContract.connect(owner).setCampaign(true)
 
 			// and a randomness contract that return 20 as random number
 			const random = new Uint256("20")
@@ -332,7 +330,7 @@ describe("Lottery", async function () {
 
 		it("Player draw successful Four Prize", async function () {
 			// Given a started campaign
-			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
+			let result: ContractTransactionResponse = await lotteryContract.connect(owner).setCampaign(true)
 
 			// and a randomness contract that return 20 as random number
 			const random = new Uint256("20")
@@ -360,7 +358,7 @@ describe("Lottery", async function () {
 
 		it("Player draw fail", async function () {
 			// Given a started campaign
-			let result: ContractTransactionResponse = await lotteryContract.connect(owner).startCampaign()
+			let result: ContractTransactionResponse = await lotteryContract.connect(owner).setCampaign(true)
 
 			// and a randomness contract that return 20 as random number
 			const random = new Uint256("20")
