@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 import { TokenMetadataReader } from "../../contracts/metadata/TokenMetadataReader.sol";
 import { ITokenMetadata } from "../../contracts/interfaces/metadata/ITokenMetadata.sol";
 import { JsonUtil } from "../../contracts/utils/JsonUtil.sol";
@@ -89,6 +90,20 @@ contract TokenMetadataReaderTest is Test {
         string memory metadata = '{"name":"Test"}';
         mockToken.setTokenMetadata(tokenId, metadata);
         assertTrue(TokenMetadataReader.exists(address(mockToken), tokenId));
+    }
+
+    function testJsonPath() public view {
+        // First, let's test the path creation
+        string memory path = TokenMetadataReader._tavp("Color");
+        console.log("Generated path:", path);
+
+        // Then test the direct JSON access
+        string memory metadata = TokenMetadataReader.getTokenMetadata(address(mockTokenComplex), TOKEN_ID);
+        console.log("Metadata:", metadata);
+
+        // Try the JsonUtil directly
+        string memory value = JsonUtil.get(metadata, path);
+        console.log("Retrieved value:", value);
     }
 
     function testGetTokenAttribute() public view {
