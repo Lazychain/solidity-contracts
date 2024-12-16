@@ -7,6 +7,7 @@ import { PriorityQueue } from "../utils/PriorityQueue.sol";
 
 interface IFairyringContract {
     function latestRandomness() external view returns (bytes32, uint256);
+
     function getRandomnessByHeight(uint256 height) external view returns (uint256);
 }
 
@@ -187,7 +188,7 @@ contract NFTLottery {
         //     revert NoNicknameSet();
         // }
 
-        (bytes32 randomSeed, uint256 randomValue) = fairyringContract.latestRandomness();
+        (, uint256 randomValue) = fairyringContract.latestRandomness(); // (bytes32 _randomSeed, uint256 randomValue)
         bool isWinner = (userGuess % threshold) == (randomValue % threshold);
 
         ++user.drawsCount;
