@@ -2,14 +2,16 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { CommonBase } from "forge-std/Base.sol";
-import { StdCheats } from "forge-std/StdCheats.sol";
 import { StdUtils } from "forge-std/StdUtils.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 
-import { LazyNFT } from "../../contracts/apps/nft.sol";
+// import { Lazy721A } from "../../contracts/apps/lazy721a.sol";
+// import { Lazy721 } from "../../contracts/apps/lazy721.sol";
+import { Lazy1155 } from "../../contracts/apps/lazy1155.sol";
 import { NFTLottery } from "../../contracts/apps/lottery.sol";
 import { IFairyringContract } from "../../contracts/apps/Ifairyring.sol";
+import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import { console } from "forge-std/console.sol";
 
 contract Handler is StdAssertions, StdUtils {
     NFTLottery private _lottery;
@@ -25,11 +27,20 @@ contract Handler is StdAssertions, StdUtils {
     }
 }
 
-contract LotteryTest is Test {
-    LazyNFT private _nft;
+contract LotteryTest is Test, ERC1155Holder {
     NFTLottery private _lottery;
-    LazyNFT[] private _collections;
-    address[] private _nftList;
+    // // test for 721A
+    // Lazy721A[] private _collections721A;
+    // address[] private _nftList721A;
+
+    // // test for 721
+    // Lazy721[] private _collections721;
+    // address[] private _nftList721;
+
+    // test for 1155
+    Lazy1155[] private _collections1155;
+    address[] private _nftList1155;
+
     IFairyringContract private _fairyringContract;
     Handler private _handler;
     address private _fundedUser;
@@ -46,26 +57,65 @@ contract LotteryTest is Test {
     uint256 private _fee = 1 ether;
 
     function setUp() public {
-        uint8 quantity = 1;
+        uint8 tokenCap = 1;
 
         // Setup
         _fundedUser = makeAddr("funded_user");
         deal(address(_fundedUser), 100 ether);
         _noFundedUser = makeAddr("no_funded_user");
 
-        // NFT Contructors and Minting
+        // // NFT Contructors and Minting 721A
+        // for (uint256 i = 0; i < 4; ++i) {
+        //     // Construct NFT contract
+        //     Lazy721A nft = new Lazy721A("LazyNFT", "LNT", tokenCap, "ipfs://hash/");
+
+        //     // Mint Tokens
+        //     nft.mint(tokenCap);
+        //     assertEq(tokenCap, nft.totalSupply());
+
+        //     // Add to list
+        //     _collections721A.push(nft);
+        //     _nftList721A.push(address(nft));
+        //     tokenCap *= 2;
+        // }
+
+        // // NFT Contructors and Minting 721
+        // for (uint256 i = 0; i < 4; ++i) {
+        //     // Construct NFT contract
+        //     Lazy721 nft = new Lazy721("LazyNFT", "LNT", tokenCap);
+
+        //     // Mint Tokens
+        //     for (uint256 n = 0; n < tokenCap; ++n) {
+        //         nft.safeMint(address(this), "ipfs://hash/");
+        //         assertEq(tokenCap, nft.totalSupply());
+        //     }
+
+        //     // Add to list
+        //     _collections721.push(nft);
+        //     _nftList721.push(address(nft));
+        //     tokenCap *= 2;
+        // }
+
+        // NFT Contructors and Minting 1155
         for (uint256 i = 0; i < 4; ++i) {
             // Construct NFT contract
-            LazyNFT nft = new LazyNFT("LazyNFT", "LNT", quantity, "ipfs://hash/");
+            Lazy1155 nft = new Lazy1155(tokenCap, "ipfs://hash/{id}.json", 0); // we want to test mint, so =0
 
             // Mint Tokens
-            nft.mint(quantity);
-            assertEq(quantity, nft.totalSupply());
+            uint256[] memory ids = new uint256[](tokenCap);
+            uint256[] memory amounts = new uint256[](tokenCap);
+
+            for (uint256 n = 0; n < tokenCap; ++n) {
+                ids[n] = n;
+                amounts[n] = 1;
+            }
+            nft.mintBatch(address(this), ids, amounts, "");
+            assertEq(tokenCap, nft.totalSupply());
 
             // Add to list
-            _collections.push(nft);
-            _nftList.push(address(nft));
-            quantity *= 2;
+            _collections1155.push(nft);
+            _nftList1155.push(address(nft));
+            tokenCap *= 2;
         }
 
         // Random mock
@@ -73,25 +123,29 @@ contract LotteryTest is Test {
 
         // the owner is LotteryTest
         // Construct Lottery
-        _lottery = new NFTLottery(address(_fairyringContract), _fee, address(_fairyringContract), _nftList);
+        _lottery = new NFTLottery(address(_fairyringContract), _fee, address(_fairyringContract), _nftList1155);
 
         // Set approval for all NFTs to Loterry as `Operator`
         for (uint256 i = 0; i < 4; ++i) {
-            _collections[i].setApprovalForAll(address(_lottery), true);
-            bool isApproved = _collections[i].isApprovedForAll(address(this), address(_lottery));
+            _collections1155[i].setApprovalForAll(address(_lottery), true);
+            bool isApproved = _collections1155[i].isApprovedForAll(address(this), address(_lottery));
             assertEq(true, isApproved);
 
             // transfer ownership of all NFT tokens to lottery contract
-            uint256 totalSupply = _collections[i].totalSupply();
+            uint256 totalSupply = _collections1155[i].totalSupply();
+            uint256 totalBalance = 0;
             for (uint256 tokenId = 0; tokenId < totalSupply; ++tokenId) {
-                _collections[i].transferFrom(address(this), address(_lottery), tokenId);
+                _collections1155[i].safeTransferFrom(address(this), address(_lottery), tokenId, 1, "");
+                uint256 balance = _collections1155[i].balanceOf(address(_lottery), tokenId);
+                assertEq(1, balance);
+                totalBalance += balance;
             }
-            assertEq(totalSupply, _collections[i].balanceOf(address(_lottery)));
+            assertEq(totalSupply, totalBalance);
         }
 
         _handler = new Handler(address(_lottery), _fundedUser);
         targetContract(address(_handler));
-        //emit log_string("setup OK.");
+        // emit log_string("setup OK.");
     }
 
     function testFail_Draw_Guess(uint8 guess) public {

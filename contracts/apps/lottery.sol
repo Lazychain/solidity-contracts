@@ -4,8 +4,10 @@ pragma solidity ^0.8.24;
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IFairyringContract, IDecrypter } from "./Ifairyring.sol";
 // import { IERC721A } from "erc721a/contracts/IERC721A.sol";
-import { LazyNFT } from "./nft.sol";
-//import "hardhat/console.sol";
+import { Lazy1155 } from "./lazy1155.sol";
+// import "hardhat/console.sol";
+// import { console } from "forge-std/console.sol";
+import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 /**
  * @title Simple NFT Lottery App
@@ -18,7 +20,7 @@ import { LazyNFT } from "./nft.sol";
  * and determine if win or not.
  * If wyn, it transfer ownership of a nft from a list
  */
-contract NFTLottery is Ownable {
+contract NFTLottery is Ownable, ERC1155Holder {
     event LotteryInitialized(address decrypter, uint256 fee);
     event RewardWithdrawn(address by, uint256 amount);
     event LotteryDrawn(address indexed player, bool result, uint256 nftId, uint256 totalDraws);
@@ -66,7 +68,7 @@ contract NFTLottery is Ownable {
 
     /// @notice Contains all the requerid nft data
     struct Collection {
-        LazyNFT nft; // This will maintain the NFTs
+        Lazy1155 nft; // This will maintain the NFTs
         uint256 tokenIndex; // This will maintain the internal TokenId index of NFTs
         uint256 maxTokens; //  This will maintain the internal Max tokens of NFTs as cached value
     }
@@ -79,6 +81,25 @@ contract NFTLottery is Ownable {
 
     /// @notice Maximum number of NFTs minted
     uint256 public totalCollectionItems = 0;
+
+    // function onERC1155Received(address, address, uint256, uint256, bytes calldata) external pure returns (bytes4) {
+    //     // "onERC1155Received(address,address,uint256,uint256,bytes)"
+    //     // Return the magic value to indicate successful receipt
+    //     // console.log("onERC1155Received; [%s]", operator);
+    //     console.logString("onERC1155Received");
+    //     return bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"));
+    // }
+
+    // function onERC1155BatchReceived(
+    //     address,
+    //     address,
+    //     uint256[] calldata,
+    //     uint256[] calldata,
+    //     bytes calldata
+    // ) external pure returns (bytes4) {
+    //     // abi.encodePacked("onERC1155Received(", operator, ",", from, ",", ids, ",", values, ",", data, ")");
+    //     return bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"));
+    // }
 
     /**
      * @notice Initializes the lottery with a decryption contract and a fee.
@@ -98,7 +119,7 @@ contract NFTLottery is Ownable {
 
         uint256 expectedMaxTokens = 1;
         for (uint256 i = 0; i < _addressList.length; ++i) {
-            LazyNFT nft = LazyNFT(_addressList[i]);
+            Lazy1155 nft = Lazy1155(_addressList[i]);
             uint256 maxTokens = _getMaxNFTs(nft);
             // console.log("A[%s] E[%s] A[%s]", address(nft), expectedMaxTokens, maxTokens);
             if (maxTokens != expectedMaxTokens)
@@ -196,7 +217,7 @@ contract NFTLottery is Ownable {
 
                 // Check if there are NFTs remaining
                 if (collection.tokenIndex < collection.maxTokens) {
-                    collection.nft.transferFrom(address(this), msg.sender, collection.tokenIndex);
+                    collection.nft.safeTransferFrom(address(this), msg.sender, collection.tokenIndex, 1, "0x0");
                     nftId = collection.tokenIndex;
                     emit LotteryDrawn(msg.sender, isWinner, collection.tokenIndex, totalDraws);
                     emit MintedNft(msg.sender, collection.tokenIndex);
@@ -224,7 +245,8 @@ contract NFTLottery is Ownable {
         for (uint256 i = _collections.length - 1; i > 0; i--) {
             // i = 3,2,1,0
             Collection storage collection = _collections[i];
-            // console.log("TokenId[%s] max[%s] Points[%s]", collection.tokenIndex, collection.maxTokens, user.pooPoints);
+            // console.log("TokenId[%s] max[%s]", collection.tokenIndex, collection.maxTokens);
+            // console.log(" Points[%s]", user.pooPoints);
 
             // Check if there are NFTs remaining
             if (collection.tokenIndex < collection.maxTokens) {
@@ -234,7 +256,7 @@ contract NFTLottery is Ownable {
 
                 // Transfer NFT to the user
                 nftId = collection.tokenIndex;
-                collection.nft.transferFrom(address(this), msg.sender, nftId);
+                collection.nft.safeTransferFrom(address(this), msg.sender, nftId, 1, "0x0");
                 emit MintedNft(msg.sender, collection.tokenIndex);
 
                 // Update index of NFTs
@@ -270,7 +292,7 @@ contract NFTLottery is Ownable {
         return _VERSION;
     }
 
-    function _getMaxNFTs(LazyNFT nftContract) private view returns (uint256) {
+    function _getMaxNFTs(Lazy1155 nftContract) private view returns (uint256) {
         try nftContract.totalSupply() returns (uint256 totalSupply) {
             return totalSupply;
         } catch {

@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ERC721A } from "erc721a/contracts/ERC721A.sol";
 
-contract LazyNFT is ERC721A, Ownable {
+contract Lazy721A is ERC721A, Ownable {
     uint16 private _tokenCap;
     string public baseURI;
 
@@ -38,15 +38,6 @@ contract LazyNFT is ERC721A, Ownable {
         _mint(msg.sender, quantity);
     }
 
-    // /**
-    //  * @dev Base URI for computing {tokenURI}. If set, the resulting URI for each
-    //  * token will be the concatenation of the `baseURI` and the `tokenId`. Empty
-    //  * by default, it can be overridden in child contracts.
-    //  */
-    // function _baseURI() internal view override returns (string memory) {
-    //     return baseURI;
-    // }
-
     /**
      * @dev Returns the Uniform Resource Identifier (URI) for `tokenId` token.
      */
@@ -55,24 +46,4 @@ contract LazyNFT is ERC721A, Ownable {
 
         return bytes(baseURI).length != 0 ? string(abi.encodePacked(baseURI, _toString(tokenId), ".json")) : "";
     }
-
-    // function _ownerOf(uint256 tokenId) internal view virtual override(ERC721, ERC721Consecutive) returns (address) {
-    //     return super._ownerOf(tokenId); // ERC721
-    // }
-
-    // function _update(
-    //     address to,
-    //     uint256 tokenId,
-    //     address auth
-    // ) internal virtual override(ERC721, ERC721Enumerable, ERC721Consecutive) returns (address) {
-    //     return super._update(to, tokenId, auth); // ERC721
-    // }
-
-    // function _increaseBalance(address account, uint128 amount) internal override(ERC721, ERC721Enumerable) {
-    //     super._increaseBalance(account, amount); // ERC721
-    // }
-
-    // function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721Enumerable) returns (bool) {
-    //     return super.supportsInterface(interfaceId); // ERC721
-    // }
 }
