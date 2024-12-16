@@ -381,6 +381,9 @@ library JsonParser {
     /// @param end Ending index
     /// @return Extracted substring
     function getBytes(string memory json, uint256 start, uint256 end) public pure returns (string memory) {
+        require(end > start, "Invalid indices");
+        require(end <= bytes(json).length, "Index out of bounds");
+
         bytes memory s = bytes(json);
         bytes memory result = new bytes(end - start);
         for (uint256 i = start; i < end; ++i) {
