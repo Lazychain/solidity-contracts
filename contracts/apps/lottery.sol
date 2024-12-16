@@ -1,18 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
-import { PriorityQueue } from "../utils/PriorityQueue.sol";
-
-interface IFairyringContract {
-    function latestRandomness() external view returns (bytes32, uint256);
-    function getRandomnessByHeight(uint256 height) external view returns (uint256);
-}
-
-interface IDecrypter {
-    function decrypt(uint8[] memory c, uint8[] memory skbytes) external returns (uint8[] memory);
-}
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { IFairyringContract, IDecrypter } from "./Ifairyring.sol";
+// import { IERC721A } from "erc721a/contracts/IERC721A.sol";
+import { LazyNFT } from "./nft.sol";
+//import "hardhat/console.sol";
 
 /**
  * @title Simple NFT Lottery App
@@ -25,27 +18,23 @@ interface IDecrypter {
  * and determine if win or not.
  * If wyn, it transfer ownership of a nft from a list
  */
-contract NFTLottery {
+contract NFTLottery is Ownable {
     event LotteryInitialized(address decrypter, uint256 fee);
     event RewardWithdrawn(address by, uint256 amount);
-    event LotteryDrawn(address indexed player, bool result, uint256 totalDraws);
-    event CampaignStatusChanged(bool isFinalized);
-    event PlayerNameSet(address indexed player, string name);
+    event LotteryDrawn(address indexed player, bool result, uint256 nftId, uint256 totalDraws);
+    event MintedNft(address indexed player, uint256 nftId);
+    event CampaignStatusChanged(bool status);
 
     error NFTContractDoesNotSupportTotalSupply();
-    error OnlyOwnerCanWithdraw();
-    error OnlyOwnerCanFinalizeCampaign();
-    error OnlyOwnerCanStartCampaign();
-    error CampaignOver();
-    error InsufficientFundsSent();
-    error InvalidThreshold();
-    error GuessValueOutOfRange();
-    error NicknameTooLong();
-    error NicknameTooShort();
-    error InvalidCharactersInNickname();
-    error NoNicknameSet();
-    error TooFewNFTs();
-    error TooFewPooPoints();
+    error NFTLotteryOnlyOwnerCanWithdraw();
+    error NFTLotteryOnlyOwnerCanFinalizeCampaign();
+    error NFTLotteryOnlyOwnerCanStartCampaign();
+    error NFTLotteryCampaignOver();
+    error NFTLotteryInsufficientFundsSent();
+    error NFTLotteryGuessValueOutOfRange();
+    error NFTLotteryTooFewNFTs(string message);
+    error NFTLotteryTooFewPooPoints();
+    error NFTLotteryInternalError(string message);
 
     /**
      * @dev There's no code at `target` (it is not a contract).
@@ -75,68 +64,74 @@ contract NFTLottery {
     /// @notice This will help with generating random numbers
     IFairyringContract public fairyringContract;
 
-    /// @notice This will maintain the NFTs
-    IERC721Enumerable public nftContract;
+    /// @notice Contains all the requerid nft data
+    struct Collection {
+        LazyNFT nft; // This will maintain the NFTs
+        uint256 tokenIndex; // This will maintain the internal TokenId index of NFTs
+        uint256 maxTokens; //  This will maintain the internal Max tokens of NFTs as cached value
+    }
 
-    /// @notice Owner of the auctionlottery
-    address public owner;
+    /// @notice Collection
+    Collection[] private _collections;
 
     /// @notice Indicates if the campaign is live or not.
-    bool public campaignFinalized;
-
-    /// @notice value that represents the win rate % in a modulo way, default 5% = 20.
-    uint8 public threshold = 20;
-
-    /// @notice Maximun user nick lenght
-    uint8 public maxNicknameLen = 7;
-
-    /// @notice Minimun user nick lenght
-    uint8 public minNicknameLen = 1;
-
-    /// @notice Pointer to the next NFT ID
-    uint256 public nextNftId = 0;
+    bool public isCampaignOpen = false;
 
     /// @notice Maximum number of NFTs minted
-    uint256 public maxNfts;
+    uint256 public totalCollectionItems = 0;
 
     /**
      * @notice Initializes the lottery with a decryption contract and a fee.
      * @param _decrypter Address of the decryption contract
      * @param _fee The fee required to submit a draw
-     * @param _threshold Number to decide  if draw success or fail. Must be less than 100.
      * @param _fairyringContract Address of the fairy ring contract
-     * @param _nftContract Address of the contract maintaining the NFTs
+     * @param _addressList A list of NFTs Addresses
      */
+    constructor(
+        address _decrypter,
+        uint256 _fee,
+        address _fairyringContract,
+        address[] memory _addressList
+    ) Ownable(msg.sender) {
+        // We expect here a _nftContracts.length == 4 for probability 7% (1%+2%+2%+2% distance algorithm)
+        if (_addressList.length > 4) revert NFTLotteryInternalError("_addressList should be max length 4 elements");
 
-    constructor(address _decrypter, uint256 _fee, uint8 _threshold, address _fairyringContract, address _nftContract) {
-        if (_threshold >= 100) revert InvalidThreshold();
+        uint256 expectedMaxTokens = 1;
+        for (uint256 i = 0; i < _addressList.length; ++i) {
+            LazyNFT nft = LazyNFT(_addressList[i]);
+            uint256 maxTokens = _getMaxNFTs(nft);
+            // console.log("A[%s] E[%s] A[%s]", address(nft), expectedMaxTokens, maxTokens);
+            if (maxTokens != expectedMaxTokens)
+                revert NFTLotteryTooFewNFTs("At least 1 nft element should exist on every nft contract");
 
-        nftContract = IERC721Enumerable(_nftContract);
-        maxNfts = _getMaxNFTs();
-        if (maxNfts < 1) revert TooFewNFTs();
+            _collections.push(Collection({ nft: nft, tokenIndex: 0, maxTokens: maxTokens }));
+            totalCollectionItems = totalCollectionItems + maxTokens;
+            expectedMaxTokens = expectedMaxTokens * 2;
+        }
 
-        owner = msg.sender;
         decrypterContract = IDecrypter(_decrypter);
         fee = _fee;
-        campaignFinalized = true;
-        threshold = _threshold;
+        // console.log("Fee[%s]", fee);
         fairyringContract = IFairyringContract(_fairyringContract);
+
+        // maxNftsCase1 = 1 * factor;
+        // maxNftsCase2 = 2 * factor;
+        // maxNftsCase3 = 4 * factor;
+        // maxNftsCase4 = 8 * factor;
 
         emit LotteryInitialized(_decrypter, _fee);
     }
 
-    // EXECUTE:OWNER:finalizeCampaign()
-    function finalizeCampaign() public {
-        if (msg.sender != owner) revert OnlyOwnerCanFinalizeCampaign();
-        campaignFinalized = true;
-        emit CampaignStatusChanged(true);
+    // EXECUTE:OWNER:Open or close campaign
+    function setCampaign(bool _isCampaignOpen) external onlyOwner {
+        isCampaignOpen = _isCampaignOpen;
+        emit CampaignStatusChanged(_isCampaignOpen);
     }
 
-    // EXECUTE:OWNER:startCampaign()
-    function startCampaign() public {
-        if (msg.sender != owner) revert OnlyOwnerCanStartCampaign();
-        campaignFinalized = false;
-        emit CampaignStatusChanged(false);
+    function withdraw() external onlyOwner {
+        uint256 balance = address(this).balance;
+        emit RewardWithdrawn(msg.sender, balance);
+        payable(msg.sender).transfer(balance);
     }
 
     // EXECUTE:ANYONE:draw(guess: number) -> Result(draw:boolean, error)
@@ -156,112 +151,126 @@ contract NFTLottery {
     //  Send Response:
     //      { result: false, total_draws }
     //      Emit Lose Event
-    function draw(uint256 userGuess) public payable returns (bool) {
-        // check pre-conditions
-        if (campaignFinalized) revert CampaignOver();
-        if (msg.value < fee) revert InsufficientFundsSent();
-        if (userGuess > 100) revert GuessValueOutOfRange();
-        _noContractCall();
-
-        // Check if there are NFTs remaining
-        if (nextNftId >= maxNfts) {
-            revert TooFewNFTs();
-        }
-
-        // check user pre-conditions
+    function draw(
+        uint256 userGuess
+    ) external payable noContractCall noZeroAddress openCampaign fees returns (uint256 nftId) {
+        bool isWinner = false; // default not win as start
+        nftId = totalCollectionItems + 1; // Ensure that this nft id doesnt exist
+        if (userGuess > 100) revert NFTLotteryGuessValueOutOfRange();
+        ++totalDraws;
         UserNameSpace storage user = userDetails[msg.sender];
 
         // Only one draw call per height, to avoid bots calling
         // We dont thrown an error, we want the bots to spend as much as possible
         if (user.height >= block.number) {
             ++user.drawsCount;
-            emit LotteryDrawn(msg.sender, false, user.drawsCount);
-            return false;
+            emit LotteryDrawn(msg.sender, false, nftId, totalDraws);
+            return nftId;
         } else {
-            // update user height
             user.height = block.number;
         }
 
-        // TODO: remove this, since setPlayerName check this first.
-        // if (bytes(user.nickName).length == 0) {
-        //     revert NoNicknameSet();
-        // }
+        (, uint256 randomValue) = fairyringContract.latestRandomness();
+        uint256 normalizedGuess = userGuess % 100;
+        uint256 normalizedRandom = randomValue % 100;
+        //console.log("guess[%s] random[%s]", normalizedGuess, normalizedRandom);
 
-        (bytes32 randomSeed, uint256 randomValue) = fairyringContract.latestRandomness();
-        bool isWinner = (userGuess % threshold) == (randomValue % threshold);
+        // get distance between guess and random
+        uint256 distance = _distance(normalizedGuess, normalizedRandom);
 
         ++user.drawsCount;
-        ++totalDraws;
         ++user.pooPoints;
 
-        if (isWinner) {
-            // Select and transfer a random NFT
-            uint256 nftId = nextNftId;
-            nftContract.transferFrom(address(this), msg.sender, nftId);
+        //console.log("guess[%s] random[%s] distance [%s]", normalizedGuess, normalizedRandom, distance);
+        // If distance is less than 4, we got a winner
+        if (distance < 4) {
+            // Winner case
+            isWinner = true;
+            // We start from the Top winning according to distance and
+            // if there are no more nft tokens, we increase distance by one
+            // to check if there are tokens in other levels
+            // Here, could be the case that the winner win an nft, but there are no more
+            // on low levels prices. In this case, is a lose.
+            for (uint256 i = distance; i < _collections.length; i++) {
+                Collection storage collection = _collections[i];
 
-            ++user.winCount;
-            ++nextNftId;
-
-            if (nextNftId >= maxNfts) {
-                // End the campaign if all NFTs are used
-                // TODO: here a user addr can call this? Make a test.
-                finalizeCampaign();
+                // Check if there are NFTs remaining
+                if (collection.tokenIndex < collection.maxTokens) {
+                    collection.nft.transferFrom(address(this), msg.sender, collection.tokenIndex);
+                    nftId = collection.tokenIndex;
+                    emit LotteryDrawn(msg.sender, isWinner, collection.tokenIndex, totalDraws);
+                    emit MintedNft(msg.sender, collection.tokenIndex);
+                    ++collection.tokenIndex;
+                    ++user.winCount;
+                    userDetails[msg.sender] = user;
+                    return nftId;
+                }
             }
+            revert NFTLotteryTooFewNFTs("No more NFTs");
+        } else {
+            emit LotteryDrawn(msg.sender, false, 0, totalDraws);
         }
-
-        emit LotteryDrawn(msg.sender, isWinner, totalDraws);
-        userDetails[msg.sender] = user;
-
-        return isWinner;
     }
 
-    // QUERY:ANYONE:total_draws() -> Result(count: number)
-    function points() public view returns (uint256) {
-        UserNameSpace storage user = userDetails[msg.sender];
-        return user.pooPoints;
-    }
-
-    function claimNFT() public payable {
-        if (campaignFinalized) revert CampaignOver();
-        if (msg.value < fee) revert InsufficientFundsSent();
-
+    function claimNFT() external payable openCampaign noZeroAddress fees returns (uint256 nftId) {
         UserNameSpace storage user = userDetails[msg.sender];
 
         // Check if the user has enough poo points
         if (user.pooPoints < 100) {
-            revert TooFewPooPoints();
+            revert NFTLotteryTooFewPooPoints();
         }
 
-        // Check if there are NFTs remaining
-        if (nextNftId >= maxNfts) {
-            revert TooFewNFTs();
+        // Check if there are NFTs remaining starting from low nfts types
+        for (uint256 i = _collections.length - 1; i > 0; i--) {
+            // i = 3,2,1,0
+            Collection storage collection = _collections[i];
+            // console.log("TokenId[%s] max[%s] Points[%s]", collection.tokenIndex, collection.maxTokens, user.pooPoints);
+
+            // Check if there are NFTs remaining
+            if (collection.tokenIndex < collection.maxTokens) {
+                // Deduct 100 poo points
+                user.pooPoints -= 100;
+                userDetails[msg.sender] = user;
+
+                // Transfer NFT to the user
+                nftId = collection.tokenIndex;
+                collection.nft.transferFrom(address(this), msg.sender, nftId);
+                emit MintedNft(msg.sender, collection.tokenIndex);
+
+                // Update index of NFTs
+                ++collection.tokenIndex;
+
+                return nftId;
+            }
         }
 
-        // Deduct 100 poo points
-        user.pooPoints -= 100;
-        userDetails[msg.sender] = user;
-
-        // Transfer NFT to the user
-        uint256 nftId = nextNftId;
-        nftContract.transferFrom(address(this), msg.sender, nftId);
-        ++nextNftId;
-
-        // End the campaign if all NFTs are claimed
-        if (nextNftId >= maxNfts) {
-            finalizeCampaign();
-        }
+        revert NFTLotteryTooFewNFTs("No more NFTs. Collection is over.");
     }
 
     // QUERY:ANYONE:total_draws() -> Result(count: number)
-    function totaldraws() public view returns (uint256) {
+    function points() external view returns (uint256) {
+        UserNameSpace storage user = userDetails[msg.sender];
+        return user.pooPoints;
+    }
+
+    // QUERY:ANYONE:total_draws() -> Result(count: number)
+    function totaldraws() external view returns (uint256) {
         return totalDraws;
     }
 
-    function campaign() public view returns (bool) {
-        return campaignFinalized;
+    function campaign() external view returns (bool) {
+        return isCampaignOpen;
     }
 
-    function _getMaxNFTs() private view returns (uint256) {
+    /**
+     * @dev Version of the rewards module.
+     */
+    function version() external pure returns (string memory) {
+        //console.log("%s", _VERSION);
+        return _VERSION;
+    }
+
+    function _getMaxNFTs(LazyNFT nftContract) private view returns (uint256) {
         try nftContract.totalSupply() returns (uint256 totalSupply) {
             return totalSupply;
         } catch {
@@ -269,23 +278,47 @@ contract NFTLottery {
         }
     }
 
-    /**
-     * @dev Version of the rewards module.
-     */
-    function version() public pure returns (string memory) {
-        return _VERSION;
-    }
-
-    function claim() public {
-        if (msg.sender != owner) revert OnlyOwnerCanWithdraw();
-        emit RewardWithdrawn(owner, address(this).balance);
-        Address.sendValue(payable(owner), address(this).balance);
-    }
-
-    function _noContractCall() internal view {
-        // Check if a smart contract calling -> 0 if EOA, >0 if smart contract
+    modifier noContractCall() {
+        // Check if a smart contract calling -> 0 if regular Ethereum account (EOA), >0 if smart contract
         if (msg.sender.code.length > 0) {
             revert AddressEmptyCode(msg.sender);
+        }
+        _;
+    }
+
+    modifier noZeroAddress() {
+        // The zero address is a special address that doesn't correspond to any account.
+        if (msg.sender == address(0)) {
+            revert AddressEmptyCode(msg.sender);
+        }
+        _;
+    }
+
+    modifier openCampaign() {
+        if (!isCampaignOpen) revert NFTLotteryCampaignOver();
+        _;
+    }
+
+    modifier fees() {
+        // console.log("Fee sent [%s]", msg.value);
+        if (msg.value < fee) revert NFTLotteryInsufficientFundsSent();
+        _;
+    }
+
+    /**
+     * @dev For this particular campaign will be 4 nfts types, each one with differents probabilities
+     * distance = 0 NFT type 1
+     * distance = 1 NFT type 2
+     * distance = 2 NFT type 3
+     * distance = 3 NFT type 4
+     * distance > 3 No NFT win
+     * distance become the `index` if the `nftContracts`
+     */
+    function _distance(uint256 a, uint256 b) internal pure returns (uint256) {
+        if (a > b) {
+            return a - b;
+        } else {
+            return b - a;
         }
     }
 }
