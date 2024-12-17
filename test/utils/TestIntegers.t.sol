@@ -8,6 +8,9 @@ contract IntegersTest is Test {
     using Integers for uint256;
     using Integers for int256;
 
+    error InvalidHexString();
+    error InvalidHexCharacter();
+
     function testToStringUint256() public {
         assertEq(uint256(0).toString(), "0");
         assertEq(uint256(12345).toString(), "12345");
@@ -39,7 +42,7 @@ contract IntegersTest is Test {
     }
 
     function testInvalidHexString() public {
-        vm.expectRevert("Invalid hex string");
+        vm.expectRevert(InvalidHexString.selector);
         Integers.fromHexString("0x");
     }
 }

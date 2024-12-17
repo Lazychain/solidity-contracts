@@ -173,10 +173,10 @@ library Strings {
         uint256 k = 0;
         uint256 length = padCount * padBytes.length;
         for (uint256 i = 0; i < length; ++i) {
-            result[++k] = padBytes[i % padBytes.length];
+            result[k++] = padBytes[i % padBytes.length];
         }
         for (uint256 i = 0; i < strLen; ++i) {
-            result[++k] = strBytes[i];
+            result[k++] = strBytes[i];
         }
         return string(result);
     }
@@ -195,12 +195,12 @@ library Strings {
 
         uint256 k = 0;
         for (uint256 i = 0; i < strLen; ++i) {
-            result[++k] = strBytes[i];
+            result[k++] = strBytes[i];
         }
         uint256 padBytesLength = padBytes.length;
         uint256 length = padCount * padBytesLength;
         for (uint256 i = 0; i < length; ++i) {
-            result[++k] = padBytes[i % padBytesLength];
+            result[k++] = padBytes[i % padBytesLength];
         }
         return string(result);
     }
@@ -343,9 +343,9 @@ library Strings {
         bytes memory combined = new bytes(aLength + bLength + cLength);
         uint256 k = 0;
 
-        for (uint256 i = 0; i < aLength; ++i) combined[++k] = a[i];
-        for (uint256 i = 0; i < bLength; ++i) combined[++k] = b[i];
-        for (uint256 i = 0; i < cLength; ++i) combined[++k] = c[i];
+        for (uint256 i = 0; i < aLength; ++i) combined[k++] = a[i];
+        for (uint256 i = 0; i < bLength; ++i) combined[k++] = b[i];
+        for (uint256 i = 0; i < cLength; ++i) combined[k++] = c[i];
 
         return combined;
     }
@@ -369,7 +369,7 @@ library Strings {
             uint256 delimIndex = findSubstring(str, delim, position);
             if (delimIndex == str.length) break;
 
-            tempPositions[++posCount] = delimIndex;
+            tempPositions[posCount++] = delimIndex;
             position = delimIndex + delim.length;
         }
 
