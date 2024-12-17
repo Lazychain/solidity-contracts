@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
-import {PriorityQueue} from "../../contracts/utils/PriorityQueue.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { PriorityQueue } from "@Lazychain/solidity-contracts/contracts/utils/PriorityQueue.sol";
 
 contract PriorityQueueTest is Test {
     using PriorityQueue for PriorityQueue.Queue;
@@ -24,7 +24,7 @@ contract PriorityQueueTest is Test {
 
         assertEq(pq.size(), 3, "Queue size should be 3");
         assertEq(pq.peek(), addr2, "Max element should be addr2");
-        
+
         address extracted = pq.extractMax();
         assertEq(extracted, addr2, "Extracted max should be addr2");
         assertEq(pq.size(), 2, "Queue size should decrease after extraction");

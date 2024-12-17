@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../../contracts/utils/Strings.sol";
+import "@Lazychain/solidity-contracts/contracts/utils/Strings.sol";
 
 contract StringsTest is Test {
     using Strings for string;
