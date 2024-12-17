@@ -1,16 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-interface INFTHandler {
-    function transferNFT(address from, address to, uint256 tokenId) external;
+import { INFTLotteryFactory, INFTHandler } from "./lotteryinterface.sol";
+import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
-    function getMaxSupply() external view returns (uint256);
+contract ERC721Handler is INFTHandler {
+    IERC721Enumerable private nftContract;
 
-    function ownerOf(uint256 tokenId) external view returns (address);
+    constructor(address _nftContract) {
+        nftContract = IERC721Enumerable(_nftContract)
+    }
 
-    function isApprovedForAll(address owner, address operator) external view returns (bool);
-}
+    function transferNFT(address from, address to, uint256 tokenId) external {
+        nftContract.transferFrom(from, to, tokenId);
+    }
 
-abstract contract LotteryFactory {
-    constructor() {}
+    function getMaxSupply() external view returns (uint256) {
+        return nftContract.totalSupply();
+    }
+
+    function ownerOf(uint256 tokenId) external view returns (address) {
+        return nftContract.ownerOf(tokenId);
+    }
+
+    function isApprovedForAll(address owner, address operator) external view returns (bool) {
+        return nftContract.isApprovedForAll(owner, operator);
+    }
 }
