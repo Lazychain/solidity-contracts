@@ -11,7 +11,7 @@ import { Lazy1155 } from "../../contracts/apps/lazy1155.sol";
 import { NFTLottery } from "../../contracts/apps/lottery.sol";
 import { IFairyringContract } from "../../contracts/apps/Ifairyring.sol";
 import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import { console } from "forge-std/console.sol";
+// import { console } from "forge-std/console.sol";
 
 contract Handler is StdAssertions, StdUtils {
     NFTLottery private _lottery;
@@ -27,6 +27,8 @@ contract Handler is StdAssertions, StdUtils {
     }
 }
 
+// TODO: Make an abstract class, a factory and interface for lottery to accept differents `types` of ERC (721,721A,1155)
+// https://betterprogramming.pub/learn-solidity-the-factory-pattern-75d11c3e7d29
 contract LotteryTest is Test, ERC1155Holder {
     NFTLottery private _lottery;
     // // test for 721A

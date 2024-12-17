@@ -4,15 +4,12 @@ pragma solidity ^0.8.24;
 import { Test } from "forge-std/Test.sol";
 import { StdCheats } from "forge-std/StdCheats.sol";
 import { Lazy721 } from "../../contracts/apps/lazy721.sol";
+import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 // https://book.getfoundry.sh/reference/config/inline-test-config
 // https://github.com/patrickd-/solidity-fuzzing-boilerplate
 
-contract Lazy721Test is StdCheats, Test {
+contract Lazy721Test is StdCheats, Test, ERC721Holder {
     Lazy721 private _nft;
-
-    // Needed so the test contract itself can receive ether
-    // when withdrawing
-    receive() external payable {}
 
     function setUp() public {
         _nft = new Lazy721("LazyNFT", "LNT", 4);

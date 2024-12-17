@@ -20,13 +20,13 @@ contract Lazy721ATest is StdCheats, Test {
 
     /// forge-config: default.fuzz.show-logs = true
     /// forge-config: default.invariant.fail-on-revert = true
-    function testFuzz_Mint(string memory name) public {
+    function testFuzz_Mint_Name(string memory name) public {
         Lazy721A newNft = new Lazy721A(name, "LNT", 4, "ipfs://lazyhash");
         assertEq(newNft.name(), name);
     }
 
     /// forge-config: default.fuzz.runs = 300
-    function testFuzz_Mint(uint16 quantity, string memory uri) public {
+    function testFuzz_Mint_Quantity(uint16 quantity, string memory uri) public {
         vm.assume(quantity > 0);
         Lazy721A newNft = new Lazy721A("LazyNFT", "LNT", quantity, uri);
         assertEq(newNft.totalSupply(), 0);
