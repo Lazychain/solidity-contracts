@@ -8,6 +8,8 @@ interface INFTHandler {
 
     function ownerOf(uint256 tokenId) external view returns (address);
 
+    function balanceOf(address user) external view returns (uint256);
+
     function isApprovedForAll(address owner, address operator) external view returns (bool);
 }
 
