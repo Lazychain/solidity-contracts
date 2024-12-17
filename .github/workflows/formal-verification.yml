@@ -1,0 +1,35 @@
+name: formal verification
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - labeled
+  workflow_dispatch: {}
+
+env:
+  PIP_VERSION: '3.11'
+  JAVA_VERSION: '11'
+  SOLC_VERSION: '0.8.20'
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  halmos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up environment
+        uses: ./.github/actions/setup
+      - name: Install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PIP_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'fv-requirements.txt'
+      - name: Install python packages
+        run: pip install -r fv-requirements.txt
+      - name: Run Halmos
+        run: halmos --match-test '^symbolic|^testSymbolic' -vv
