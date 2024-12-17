@@ -1,34 +1,35 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "forge-std/Test.sol";
-import { LazyNFT } from "@Lazychain/solidity-contracts/contracts/apps/nft.sol";
+import { Test } from "forge-std/Test.sol";
+import { StdCheats } from "forge-std/StdCheats.sol";
+import { Lazy721 } from "../../contracts/apps/lazy721.sol";
+import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "hardhat/console.sol";
+// https://book.getfoundry.sh/reference/config/inline-test-config
+// https://github.com/patrickd-/solidity-fuzzing-boilerplate
 
-contract LazyNftTest is Test {
-    LazyNFT public lnft;
+contract Lazy721Test is StdCheats, Test, ERC721Holder {
+    Lazy721 private lnft;
     address public owner;
     address public user1;
     address public user2;
 
     function setUp() public {
-        owner = makeAddr("owner");
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
 
-        vm.prank(owner);
-        lnft = new LazyNFT(owner, "Lazy NFT", "LAZY");
+        lnft = new Lazy721("Lazy NFT", "LAZY", 4, "ipfs://lazyhash/");
     }
 
-    function testInitializeState() public {
+    function testInitializeState() public view {
         assertEq(lnft.name(), "Lazy NFT");
         assertEq(lnft.symbol(), "LAZY");
-        assertEq(lnft.owner(), owner);
+        assertEq(lnft.owner(), address(this));
         assertEq(lnft.totalSupply(), 0);
     }
 
     function testSafeMint() public {
-        vm.startPrank(owner);
-
         lnft.safeMint(user1);
         assertEq(lnft.totalSupply(), 1);
         assertEq(lnft.balanceOf(user1), 1);
@@ -38,21 +39,16 @@ contract LazyNftTest is Test {
         lnft.safeMint(user2);
         assertEq(lnft.totalSupply(), 2);
         assertEq(lnft.balanceOf(user1), 1);
-        assertEq(lnft.balanceOf(user1), 1);
+        assertEq(lnft.balanceOf(user2), 1);
         assertEq(lnft.ownerOf(1), user2);
-
-        vm.stopPrank();
     }
 
     function test_TokenURI() public {
-        vm.startPrank(owner);
         lnft.safeMint(user1);
         assertEq(lnft.tokenURI(0), "ipfs://lazyhash/0.json");
 
         lnft.safeMint(user2);
         assertEq(lnft.tokenURI(1), "ipfs://lazyhash/1.json");
-
-        vm.stopPrank();
     }
 
     function testRevertWhenNonOwnerMints() public {
@@ -62,17 +58,13 @@ contract LazyNftTest is Test {
     }
 
     function testRevertWhenTokenCapExceed() public {
-        vm.startPrank(owner);
-
         lnft.safeMint(user1);
         lnft.safeMint(user1);
         lnft.safeMint(user1);
         lnft.safeMint(user1);
 
-        vm.expectRevert(LazyNFT.LazyNFT__TokenCapExceeded.selector);
+        vm.expectRevert(Lazy721.Lazy721__TokenCapExceeded.selector);
         lnft.safeMint(user1);
-
-        vm.stopPrank();
     }
 
     function testRevertWhenQueryNonexistentToken() public {
@@ -80,10 +72,29 @@ contract LazyNftTest is Test {
         lnft.tokenURI(999);
     }
 
-    function test_SupportsInterface() public {
+    function test_SupportsInterface() public view {
         // Test ERC721 interface support
         assertTrue(lnft.supportsInterface(0x80ac58cd)); // ERC721
         assertTrue(lnft.supportsInterface(0x780e9d63)); // ERC721Enumerable
         assertTrue(lnft.supportsInterface(0x5b5e139f)); // ERC721Metadata
+    }
+
+    // forge-config: default.fuzz.show-logs = true
+    // forge-config: default.invariant.fail-on-revert = true
+    function testFuzz_Mint(string memory name) public {
+        Lazy721 newNft = new Lazy721(name, "LNT", 4, "ipfs://lazyhash/");
+        assertEq(newNft.name(), name);
+    }
+
+    // forge-config: default.fuzz.runs = 300
+    function testFuzz_Mint(uint16 quantity) public {
+        vm.assume(quantity > 0);
+        Lazy721 newNft = new Lazy721("LazyNFT", "LNT", quantity, "ipfs://lazyhash/");
+        assertEq(newNft.totalSupply(), 0);
+        for (uint256 i = 0; i < quantity; ++i) {
+            // LazyNFTTest is the owner
+            newNft.safeMint(address(this));
+        }
+        assertEq(newNft.totalSupply(), quantity);
     }
 }

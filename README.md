@@ -22,9 +22,7 @@ curl -L https://foundry.paradigm.xyz | bash
 > Install all the packages
 
 ```sh
-npm i
-# or
-npm i --force
+bun i
 ```
 
 > Build contracts
@@ -145,3 +143,8 @@ TODO
 ### Gas tracking
 
 -[gas-tracking](https://book.getfoundry.sh/forge/gas-tracking)
+
+```bash
+forge install transmissions11/solmate
+forge remappings
+```
