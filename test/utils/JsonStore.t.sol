@@ -3,8 +3,8 @@ pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { Base64 } from "../../contracts/utils/Base64.sol";
-import { JsonStore } from "../../contracts/utils/JsonStore.sol";
+import { Base64 } from "@Lazychain/solidity-contracts/contracts/utils/Base64.sol";
+import { JsonStore } from "@Lazychain/solidity-contracts/contracts/utils/JsonStore.sol";
 
 contract JsonStoreTest is Test {
     using JsonStore for JsonStore.Store;

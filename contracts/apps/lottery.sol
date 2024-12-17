@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import { PriorityQueue } from "../utils/PriorityQueue.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
-import { PriorityQueue } from "../utils/PriorityQueue.sol";
 
 interface IFairyringContract {
     function latestRandomness() external view returns (bytes32, uint256);
@@ -24,29 +24,29 @@ interface IDecrypter {
  * Submit draw(gues_number) for nft lottery: User sends a guess number to the contract.
  * The contract get a random_number from Fairblock Technologies and compare with the guess_number
  * and determine if win or not.
- * If wyn, it transfer ownership of a nft from a list
+ * If win, it transfer ownership of a nft from a list
  */
 contract NFTLottery {
-    event LotteryInitialized(address decrypter, uint256 fee);
-    event RewardWithdrawn(address by, uint256 amount);
-    event LotteryDrawn(address indexed player, bool result, uint256 totalDraws);
     event CampaignStatusChanged(bool isFinalized);
+    event RewardWithdrawn(address by, uint256 amount);
+    event LotteryInitialized(address decrypter, uint256 fee);
     event PlayerNameSet(address indexed player, string name);
+    event LotteryDrawn(address indexed player, bool result, uint256 totalDraws);
 
-    error NFTContractDoesNotSupportTotalSupply();
-    error OnlyOwnerCanWithdraw();
-    error OnlyOwnerCanFinalizeCampaign();
-    error OnlyOwnerCanStartCampaign();
-    error CampaignOver();
-    error InsufficientFundsSent();
-    error InvalidThreshold();
-    error GuessValueOutOfRange();
-    error NicknameTooLong();
-    error NicknameTooShort();
-    error InvalidCharactersInNickname();
-    error NoNicknameSet();
-    error TooFewNFTs();
-    error TooFewPooPoints();
+    error NFTLottery__TooFewNFTs();
+    error NFTLottery__CampaignOver();
+    error NFTLottery__NoNicknameSet();
+    error NFTLottery__NicknameTooLong();
+    error NFTLottery__TooFewPooPoints();
+    error NFTLottery__NicknameTooShort();
+    error NFTLottery__InvalidThreshold();
+    error NFTLottery__OnlyOwnerCanWithdraw();
+    error NFTLottery__GuessValueOutOfRange();
+    error NFTLottery__InsufficientFundsSent();
+    error NFTLottery__OnlyOwnerCanStartCampaign();
+    error NFTLottery__InvalidCharactersInNickname();
+    error NFTLottery__OnlyOwnerCanFinalizeCampaign();
+    error NFTLottery__NFTContractDoesNotSupportTotalSupply();
 
     /**
      * @dev There's no code at `target` (it is not a contract).
@@ -110,11 +110,11 @@ contract NFTLottery {
      */
 
     constructor(address _decrypter, uint256 _fee, uint8 _threshold, address _fairyringContract, address _nftContract) {
-        if (_threshold >= 100) revert InvalidThreshold();
+        if (_threshold >= 100) revert NFTLottery__InvalidThreshold();
 
         nftContract = IERC721Enumerable(_nftContract);
         maxNfts = _getMaxNFTs();
-        if (maxNfts < 1) revert TooFewNFTs();
+        if (maxNfts < 1) revert NFTLottery__TooFewNFTs();
 
         owner = msg.sender;
         decrypterContract = IDecrypter(_decrypter);
@@ -128,14 +128,14 @@ contract NFTLottery {
 
     // EXECUTE:OWNER:finalizeCampaign()
     function finalizeCampaign() public {
-        if (msg.sender != owner) revert OnlyOwnerCanFinalizeCampaign();
+        if (msg.sender != owner) revert NFTLottery__OnlyOwnerCanFinalizeCampaign();
         campaignFinalized = true;
         emit CampaignStatusChanged(true);
     }
 
     // EXECUTE:OWNER:startCampaign()
     function startCampaign() public {
-        if (msg.sender != owner) revert OnlyOwnerCanStartCampaign();
+        if (msg.sender != owner) revert NFTLottery__OnlyOwnerCanStartCampaign();
         campaignFinalized = false;
         emit CampaignStatusChanged(false);
     }
@@ -159,14 +159,14 @@ contract NFTLottery {
     //      Emit Lose Event
     function draw(uint256 userGuess) public payable returns (bool) {
         // check pre-conditions
-        if (campaignFinalized) revert CampaignOver();
-        if (msg.value < fee) revert InsufficientFundsSent();
-        if (userGuess > 100) revert GuessValueOutOfRange();
+        if (campaignFinalized) revert NFTLottery__CampaignOver();
+        if (msg.value < fee) revert NFTLottery__InsufficientFundsSent();
+        if (userGuess > 100) revert NFTLottery__GuessValueOutOfRange();
         _noContractCall();
 
         // Check if there are NFTs remaining
         if (nextNftId >= maxNfts) {
-            revert TooFewNFTs();
+            revert NFTLottery__TooFewNFTs();
         }
 
         // check user pre-conditions
@@ -185,7 +185,7 @@ contract NFTLottery {
 
         // TODO: remove this, since setPlayerName check this first.
         // if (bytes(user.nickName).length == 0) {
-        //     revert NoNicknameSet();
+        //     revert NFTLottery__NoNicknameSet();
         // }
 
         (, uint256 randomValue) = fairyringContract.latestRandomness(); // (bytes32 _randomSeed, uint256 randomValue)
@@ -223,19 +223,19 @@ contract NFTLottery {
     }
 
     function claimNFT() public payable {
-        if (campaignFinalized) revert CampaignOver();
-        if (msg.value < fee) revert InsufficientFundsSent();
+        if (campaignFinalized) revert NFTLottery__CampaignOver();
+        if (msg.value < fee) revert NFTLottery__InsufficientFundsSent();
 
         UserNameSpace storage user = userDetails[msg.sender];
 
         // Check if the user has enough poo points
         if (user.pooPoints < 100) {
-            revert TooFewPooPoints();
+            revert NFTLottery__TooFewPooPoints();
         }
 
         // Check if there are NFTs remaining
         if (nextNftId >= maxNfts) {
-            revert TooFewNFTs();
+            revert NFTLottery__TooFewNFTs();
         }
 
         // Deduct 100 poo points
@@ -266,7 +266,7 @@ contract NFTLottery {
         try nftContract.totalSupply() returns (uint256 totalSupply) {
             return totalSupply;
         } catch {
-            revert NFTContractDoesNotSupportTotalSupply();
+            revert NFTLottery__NFTContractDoesNotSupportTotalSupply();
         }
     }
 
@@ -278,7 +278,7 @@ contract NFTLottery {
     }
 
     function claim() public {
-        if (msg.sender != owner) revert OnlyOwnerCanWithdraw();
+        if (msg.sender != owner) revert NFTLottery__OnlyOwnerCanWithdraw();
         emit RewardWithdrawn(owner, address(this).balance);
         Address.sendValue(payable(owner), address(this).balance);
     }
