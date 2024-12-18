@@ -26,7 +26,7 @@ abstract contract NFTLotteryFactory is INFTLotteryFactory {
         uint256 fee,
         uint8 threshold,
         address fairyring
-    ) public {
+    ) public returns (address) {
         bool isERC721 = _supportsInterface(nftContract, type(IERC721).interfaceId);
         bool isERC1155 = _supportsInterface(nftContract, type(IERC1155).interfaceId);
 
