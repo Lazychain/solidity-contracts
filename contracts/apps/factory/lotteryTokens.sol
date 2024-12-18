@@ -12,8 +12,10 @@ contract ERC721Handler is INFTHandler {
         nftContract = IERC721Enumerable(_nftContract);
     }
 
-    function transferNFT(address from, address to, uint256 tokenId) external {
-        nftContract.transferFrom(from, to, tokenId);
+    function transferNFT(address from, address to, uint256[] memory tokenIds, uint256[] memory) external {
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            nftContract.transferFrom(from, to, tokenIds[i]);
+        }
     }
 
     function getMaxSupply() external view returns (uint256) {
@@ -24,7 +26,7 @@ contract ERC721Handler is INFTHandler {
         return nftContract.ownerOf(tokenId);
     }
 
-    function balanceOf(address user) external view returns (uint256) {
+    function balanceOf(address user, uint256) external view returns (uint256) {
         return nftContract.balanceOf(user);
     }
 
@@ -35,23 +37,48 @@ contract ERC721Handler is INFTHandler {
 
 contract ERC1155Handler is INFTHandler {
     IERC1155 private nftContract;
-    uint256 private immutable tokenId;
-    uint256 private immutable maxSupply;
+
+    mapping(uint256 => uint256) private supply; // tokenId => maxSupply
+    mapping(uint256 => uint256) private allocatedAmounts; // tokenId => amount
+    uint256[] private supportedTokenIds; // track of all tokenIds
 
     error ERC1155Handler__NotSupported();
 
-    constructor(address _nftContract, uint256 _tokenId, uint256 _maxSupply) {
+    constructor(address _nftContract, uint256[] memory _tokenIds, uint256[] memory _maxSupplies) {
+        require(_tokenIds.length == _maxSupplies.length, "Arrays length mismatch");
         nftContract = IERC1155(_nftContract);
-        tokenId = _tokenId;
-        maxSupply = _maxSupply;
+
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            supply[_tokenIds[i]] = _maxSupplies[i];
+            supportedTokenIds.push(_tokenIds[i]);
+        }
     }
 
-    function transferNFT(address from, address to, uint256) external {
-        nftContract.safeTransferFrom(from, to, tokenId, 1, "");
+    function transferNFT(address from, address to, uint256[] memory tokenIds, uint256[] memory amounts) external {
+        require(tokenIds.length == amounts.length, "Arrays length mismatch");
+
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            require(allocatedAmounts[tokenIds[i]] + amounts[i] <= supply[tokenIds[i]], "Exceeds max supply");
+
+            nftContract.safeTransferFrom(from, to, tokenIds[i], amounts[i], "");
+            allocatedAmounts[tokenIds[i]] += amounts[i];
+        }
     }
 
-    function getMaxSupply() external view returns (uint256) {
-        return maxSupply;
+    function getMaxSupply() external view override returns (uint256) {
+        uint256 totalSupply = 0;
+        for (uint256 i = 0; i < supportedTokenIds.length; i++) {
+            totalSupply += supply[supportedTokenIds[i]];
+        }
+        return totalSupply;
+    }
+
+    function getTokenMaxSupply(uint256 tokenId) external view returns (uint256) {
+        return supply[tokenId];
+    }
+
+    function getAllocatedAmount(uint256 tokenId) external view returns (uint256) {
+        return allocatedAmounts[tokenId];
     }
 
     function ownerOf(uint256) external pure returns (address) {
@@ -59,7 +86,7 @@ contract ERC1155Handler is INFTHandler {
         revert ERC1155Handler__NotSupported();
     }
 
-    function balanceOf(address user) external view returns (uint256) {
+    function balanceOf(address user, uint256 tokenId) external view returns (uint256) {
         return nftContract.balanceOf(user, tokenId);
     }
 
