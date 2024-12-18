@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import { NFTLottery } from "../lottery.sol";
 import { ERC721Handler, ERC1155Handler } from "./lotteryTokens.sol";
 import { INFTLotteryFactory, INFTHandler } from "./lotteryinterface.sol";
-import { NFTLottery } from "../lottery.sol";
 import { IERC165 } from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
@@ -85,9 +85,17 @@ contract NFTLotteryProxy {
     fallback() external payable {
         address _implementation = implementation;
         assembly {
-            calldatacopy(0, 0, calldatasize())
+            calldatacopy(0, 0, calldatasize()) // copy input data (calldata) -> mem pos 0
+
+            // Parameters:
+            // - gas(): all remaining gas
+            // - _implementation: address to delegate to
+            // - 0: start reading memory from position 0
+            // - calldatasize(): amount of input data
+            // - 0: start writing output to memory position 0
+            // - 0: we don't know output size yet
             let result := delegatecall(gas(), _implementation, 0, calldatasize(), 0, 0)
-            returndatacopy(0, 0, returndatasize())
+            returndatacopy(0, 0, returndatasize()) // copy return data to memory
             switch result
             case 0 {
                 revert(0, returndatasize())
