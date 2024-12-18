@@ -33,10 +33,12 @@ contract ERC721Handler is INFTHandler {
     }
 }
 
-contract ERC1155Handler is INFTLotteryFactory {
+contract ERC1155Handler is INFTHandler {
     IERC1155 private nftContract;
     uint256 private immutable tokenId;
     uint256 private immutable maxSupply;
+
+    error ERC1155Handler__NotSupported();
 
     constructor(address _nftContract, uint256 _tokenId, uint256 _maxSupply) {
         nftContract = IERC1155(_nftContract);
@@ -44,7 +46,7 @@ contract ERC1155Handler is INFTLotteryFactory {
         maxSupply = _maxSupply;
     }
 
-    function transferNFT(address from, address to, uint256 tokenId) external {
+    function transferNFT(address from, address to, uint256) external {
         nftContract.safeTransferFrom(from, to, tokenId, 1, "");
     }
 
@@ -52,16 +54,16 @@ contract ERC1155Handler is INFTLotteryFactory {
         return maxSupply;
     }
 
-    function ownerOf(uint256) external view override returns (address) {
+    function ownerOf(uint256) external pure returns (address) {
         // ERC1155 doesn't have direct ownerOf, would need additional tracking
-        revert("Not supported for ERC1155");
+        revert ERC1155Handler__NotSupported();
     }
 
     function balanceOf(address user) external view returns (uint256) {
-        return nftContract.balanceOf(user);
+        return nftContract.balanceOf(user, tokenId);
     }
 
-    function isApprovedForAll(address owner, address operator) external view override returns (bool) {
+    function isApprovedForAll(address owner, address operator) external view returns (bool) {
         return nftContract.isApprovedForAll(owner, operator);
     }
 }
