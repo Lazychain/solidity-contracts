@@ -7,7 +7,7 @@ import { IERC165 } from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
-contract NFTLotteryFactory is INFTLotteryFactory {
+abstract contract NFTLotteryFactory is INFTLotteryFactory {
     enum NFTStandards {
         ERC721,
         ERC1155
@@ -39,8 +39,15 @@ contract NFTLotteryFactory is INFTLotteryFactory {
             nftHandler = address(new ERC1155Handler(nftContract, 1, 1000)); // Example....
             standard = NFTStandards.ERC1155;
         } else {
-            revert("Unsupported NFT standards");
+            revert NFTLotteryFactory__UnsupportedNFTStandards();
         }
+
+        address lotteryAddress = _deployLottery(nftHandler, fee, threshold, fairyring, decrypter);
+
+        lotteryTypes[lotteryAddress] = standard;
+        emit LotteryCreated(lotteryAddress, standard);
+
+        return lotteryAddress;
     }
 
     function _supportsInterface(address contractAddress, bytes4 interfaceId) internal view returns (bool) {
@@ -49,5 +56,16 @@ contract NFTLotteryFactory is INFTLotteryFactory {
         } catch {
             return false;
         }
+    }
+
+    function _deployLottery(
+        address nftHandler,
+        uint256 fee,
+        uint8 threshold,
+        address fairyringContract,
+        address decrypter
+    ) internal returns (address) {
+        NFTLotteryProxy lottery = new NFTLotteryProxy(nftHandler, fee, threshold, fairyringContract, decrypter);
+        return address(lottery);
     }
 }
