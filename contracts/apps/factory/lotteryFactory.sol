@@ -37,7 +37,18 @@ abstract contract NFTLotteryFactory is INFTLotteryFactory {
             nftHandler = address(new ERC721Handler(nftContract));
             standard = NFTStandards.ERC721;
         } else if (isERC1155) {
-            nftHandler = address(new ERC1155Handler(nftContract, 1, 1000)); // Example....
+            // Example
+            uint256[] memory ids;
+            ids[0] = 1;
+            // ids[1] = 2;
+            // ids[2] = 3;
+
+            uint256[] memory amounts;
+            amounts[0] = 1000;
+            // amounts[1] = 1000;
+            // amounts[2] = 2000;
+
+            nftHandler = address(new ERC1155Handler(nftContract, ids, amounts));
             standard = NFTStandards.ERC1155;
         } else {
             revert NFTLotteryFactory__UnsupportedNFTStandards();
