@@ -8,7 +8,6 @@ libs = ['node_modules', 'lib']
 allow_paths = ["./node_modules"]
 remappings = [
     'forge-std/=lib/forge-std/src/',
-    '@Lazychain/solidity-contracts/=./',
     '@openzeppelin/=node_modules/@openzeppelin/',
     'erc721a/=node_modules/erc721a/',
 ]

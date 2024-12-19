@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "@Lazychain/solidity-contracts/contracts/utils/Integers.sol";
+import "../../contracts/utils/Integers.sol";
 
 contract IntegersTest is Test {
     using Integers for uint256;

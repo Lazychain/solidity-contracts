@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import { JsonUtil } from "@Lazychain/solidity-contracts/contracts/utils/JsonUtil.sol";
+import { JsonUtil } from "../../contracts/utils/JsonUtil.sol";
 
 contract JsonUtilTest is Test {
     string private constant SIMPLE_JSON = '{"name":"John","age":30,"city":"New York"}';

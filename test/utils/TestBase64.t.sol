@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "@Lazychain/solidity-contracts/contracts/utils/Base64.sol";
+import "../../contracts/utils/Base64.sol";
 
 contract Base64Test is Test {
     using Base64 for bytes;

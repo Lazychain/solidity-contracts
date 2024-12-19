@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Test, console } from "forge-std/Test.sol";
-import { PriorityQueue } from "@Lazychain/solidity-contracts/contracts/utils/PriorityQueue.sol";
+import { PriorityQueue } from "../../contracts/utils/PriorityQueue.sol";
 
 contract PriorityQueueTest is Test {
     using PriorityQueue for PriorityQueue.Queue;
