@@ -29,17 +29,17 @@ library JsonUtil {
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
         if (count == 0) revert JsonUtil__InvalidJson();
 
-        uint256 index = findPath(tokens, _path, _jsonBlob);
-        if (index == 0) revert JsonUtil__PathNotFound();
+        uint256 tokenIndex = findPath(tokens, _path, _jsonBlob);
+        if (tokenIndex == 0) revert JsonUtil__PathNotFound();
 
-        // Get value based on token type
-        JsonParser.Token memory token = tokens[index];
+        JsonParser.Token memory token = tokens[tokenIndex];
+
+        // For string values, remove quotes
         if (token.jsonType == JsonParser.JsonType.STRING) {
-            // For string values, remove the quotes
             return JsonParser.getBytes(_jsonBlob, token.start + 1, token.end - 1);
         }
 
-        // For other types (numbers, booleans, etc), return as is
+        // For other values (numbers, booleans), return as is
         return JsonParser.getBytes(_jsonBlob, token.start, token.end);
     }
 
@@ -442,34 +442,52 @@ library JsonUtil {
         string memory path,
         string memory jsonBlob
     ) internal pure returns (uint256) {
-        uint256 currentToken = 0;
-
-        // Handle direct path without dots
-        if (!containsDot(path)) {
-            return findToken(tokens, currentToken, path, jsonBlob);
-        }
-
-        // Split path by dots
         bytes memory pathBytes = bytes(path);
-        uint256 startIndex = 0;
 
-        // Process each path segment
+        // Handle nested paths with dots
         for (uint256 i = 0; i < pathBytes.length; i++) {
-            if (pathBytes[i] == bytes1(".")) {
-                string memory segment = substring(path, startIndex, i);
-                currentToken = findToken(tokens, currentToken, segment, jsonBlob);
-                if (currentToken == 0) return 0;
-                startIndex = i + 1;
+            if (pathBytes[i] == ".") {
+                string memory firstPart = substring(path, 0, i);
+                string memory remainingPath = substring(path, i + 1, pathBytes.length);
+
+                uint256 firstToken = findToken(tokens, 0, firstPart, jsonBlob);
+                if (firstToken == 0) return 0;
+
+                return findPath(tokens, remainingPath, jsonBlob);
             }
         }
 
-        // Process final segment
-        if (startIndex < pathBytes.length) {
-            string memory finalSegment = substring(path, startIndex, pathBytes.length);
-            currentToken = findToken(tokens, currentToken, finalSegment, jsonBlob);
+        // Handle array access
+        for (uint256 i = 0; i < pathBytes.length; i++) {
+            if (pathBytes[i] == "[") {
+                string memory arrayName = substring(path, 0, i);
+                string memory indexStr = substring(path, i + 1, pathBytes.length - 1);
+                uint256 targetIndex = strToUint(indexStr);
+
+                uint256 arrayToken = findToken(tokens, 0, arrayName, jsonBlob);
+                if (arrayToken == 0) return 0;
+
+                if (tokens[arrayToken].jsonType != JsonParser.JsonType.ARRAY) {
+                    return 0;
+                }
+
+                // Find element at index
+                uint256 elemIndex = 0;
+                uint256 pos = arrayToken + 1;
+
+                while (pos < tokens.length && tokens[pos].startSet && tokens[pos].start < tokens[arrayToken].end) {
+                    if (elemIndex == targetIndex) {
+                        return pos;
+                    }
+                    elemIndex++;
+                    pos++;
+                }
+                return 0;
+            }
         }
 
-        return currentToken;
+        // Simple property access
+        return findToken(tokens, 0, path, jsonBlob);
     }
 
     // Helper function to check if a path contains dots
@@ -496,16 +514,135 @@ library JsonUtil {
         string memory segment,
         string memory jsonBlob
     ) private pure returns (uint256) {
-        bytes memory segBytes = bytes(segment);
+        bytes memory segmentBytes = bytes(segment);
 
-        // Check if segment is array access
-        if (segBytes.length > 2 && segBytes[0] == "[" && segBytes[segBytes.length - 1] == "]") {
-            // Extract the index part without using slice notation
-            string memory indexStr = substring(segment, 1, segBytes.length - 1);
-            return processArrayAccess(tokens, parentToken, indexStr);
+        // Find array bracket if exists
+        int256 bracketPos = -1;
+        for (uint256 i = 0; i < segmentBytes.length; i++) {
+            if (segmentBytes[i] == "[") {
+                bracketPos = int256(i);
+                break;
+            }
         }
 
+        // Handle array access
+        if (bracketPos >= 0) {
+            // Get array name (before bracket)
+            string memory arrayName = substring(segment, 0, uint256(bracketPos));
+
+            // Get array index (between brackets)
+            string memory indexStr = substring(segment, uint256(bracketPos) + 1, segmentBytes.length - 1);
+            uint256 index = strToUint(indexStr);
+
+            // Find array token
+            uint256 arrayToken = findToken(tokens, parentToken, arrayName, jsonBlob);
+            if (arrayToken == 0 || tokens[arrayToken].jsonType != JsonParser.JsonType.ARRAY) {
+                return 0;
+            }
+
+            // Find element at index
+            uint256 currentIndex = 0;
+            uint256 currentToken = arrayToken + 1;
+
+            while (
+                currentToken < tokens.length &&
+                tokens[currentToken].startSet &&
+                tokens[currentToken].start < tokens[arrayToken].end
+            ) {
+                if (currentIndex == index) {
+                    // Found target element
+                    return currentToken;
+                }
+                currentIndex++;
+                currentToken++;
+            }
+
+            return 0;
+        }
+
+        // Regular property access
         return findToken(tokens, parentToken, segment, jsonBlob);
+    }
+
+    function findArrayElement(
+        JsonParser.Token[] memory tokens,
+        uint256 arrayToken,
+        uint256 targetIndex
+    ) private pure returns (uint256) {
+        uint256 currentIndex;
+        uint256 i = arrayToken + 1;
+
+        while (i < tokens.length && !isEndOfArray(tokens, arrayToken, i)) {
+            if (tokens[i].startSet) {
+                if (currentIndex == targetIndex) {
+                    return i;
+                }
+                currentIndex++;
+            }
+            i++;
+        }
+
+        return 0;
+    }
+
+    function isEndOfArray(
+        JsonParser.Token[] memory tokens,
+        uint256 arrayStart,
+        uint256 currentPos
+    ) private pure returns (bool) {
+        return
+            currentPos >= tokens.length ||
+            tokens[currentPos].startSet == false ||
+            tokens[currentPos].start > tokens[arrayStart].end;
+    }
+
+    function strToUint(string memory str) private pure returns (uint256) {
+        bytes memory b = bytes(str);
+        uint256 result = 0;
+        for (uint256 i = 0; i < b.length; i++) {
+            uint8 digit = uint8(b[i]) - 48;
+            require(digit <= 9, "Invalid number");
+            result = result * 10 + digit;
+        }
+        return result;
+    }
+
+    function hasArrayAccess(string memory path) private pure returns (bool) {
+        bytes memory pathBytes = bytes(path);
+        for (uint256 i = 0; i < pathBytes.length; i++) {
+            if (pathBytes[i] == "[") return true;
+        }
+        return false;
+    }
+
+    function parseArrayAccess(string memory segment) private pure returns (string memory name, uint256 index) {
+        bytes memory segmentBytes = bytes(segment);
+        uint256 bracketPos;
+
+        // Find position of [
+        for (uint256 i = 0; i < segmentBytes.length; i++) {
+            if (segmentBytes[i] == "[") {
+                bracketPos = i;
+                break;
+            }
+        }
+
+        // Extract name part
+        name = new string(bracketPos);
+        for (uint256 i = 0; i < bracketPos; i++) {
+            assembly {
+                mstore8(add(add(name, 0x20), i), mload(add(add(segmentBytes, 0x20), i)))
+            }
+        }
+
+        // Extract index part
+        uint256 indexLength = segmentBytes.length - bracketPos - 2; // -2 for [ and ]
+        bytes memory indexStr = new bytes(indexLength);
+        for (uint256 i = 0; i < indexLength; i++) {
+            indexStr[i] = segmentBytes[bracketPos + 1 + i];
+        }
+
+        index = strToUint(string(indexStr));
     }
 
     /// @notice Processes array access in JSON path
@@ -554,33 +691,25 @@ library JsonUtil {
         string memory key,
         string memory jsonBlob
     ) private pure returns (uint256) {
-        if (parentToken >= tokens.length) return 0;
+        uint256 current = (parentToken == 0) ? 1 : parentToken + 1;
+        JsonParser.Token memory endToken = tokens[parentToken];
 
-        JsonParser.Token memory parent = tokens[parentToken];
-        if (parent.jsonType == JsonParser.JsonType.OBJECT) {
-            for (uint256 i = parentToken + 1; i < tokens.length; i++) {
-                if (!tokens[i].startSet) continue;
+        while (current < tokens.length && tokens[current].startSet) {
+            // Break if we're past the parent's scope
+            if (parentToken != 0 && tokens[current].start >= endToken.end) break;
 
-                // Check if it's a key token (string type)
-                if (tokens[i].jsonType == JsonParser.JsonType.STRING) {
-                    // Get the actual key by extracting from the quotes
-                    string memory currentKey = JsonParser.getBytes(
-                        jsonBlob,
-                        tokens[i].start + 1, // start after quote
-                        tokens[i].end - 1 // end before quote
-                    );
+            if (tokens[current].jsonType == JsonParser.JsonType.STRING) {
+                string memory currentKey = JsonParser.getBytes(
+                    jsonBlob,
+                    tokens[current].start + 1,
+                    tokens[current].end - 1
+                );
 
-                    // Compare with target key
-                    if (JsonParser.strCompare(currentKey, key) == 0) {
-                        return i + 1; // Return index of value token
-                    }
-                }
-
-                // Skip value token
-                if (i + 1 < tokens.length) {
-                    i++;
+                if (JsonParser.strCompare(currentKey, key) == 0) {
+                    return current + 1; // Return next token which is the value
                 }
             }
+            current++;
         }
 
         return 0;
@@ -648,15 +777,15 @@ library JsonUtil {
     /// @param str Source string
     /// @param startIndex Start index of substring
     /// @param endIndex End index of substring
-    function substring(string memory str, uint256 startIndex, uint256 endIndex) internal pure returns (string memory) {
+    function substring(string memory str, uint256 startIndex, uint256 endIndex) private pure returns (string memory) {
+        require(endIndex >= startIndex, "Invalid substring indices");
+        require(bytes(str).length >= endIndex, "End index out of bounds");
+
         bytes memory strBytes = bytes(str);
-        require(startIndex <= endIndex && endIndex <= strBytes.length, "Invalid indices");
-
         bytes memory result = new bytes(endIndex - startIndex);
-        for (uint256 i = startIndex; i < endIndex; i++) {
-            result[i - startIndex] = strBytes[i];
+        for (uint256 i = 0; i < endIndex - startIndex; i++) {
+            result[i] = strBytes[startIndex + i];
         }
-
         return string(result);
     }
 
