@@ -8,7 +8,6 @@ import {
     FullContractMetadata
 } from "../interfaces/metadata/IContractMetadata.sol";
 import { JsonUtil } from "../utils/JsonUtil.sol";
-import { JsonStore } from "../utils/JsonStore.sol";
 
 abstract contract ContractMetadata is IContractMetadata {
     bool internal _contractMetadataCemented = false;
@@ -92,7 +91,7 @@ abstract contract ContractMetadata is IContractMetadata {
         metadata = JsonUtil.set(metadata, paths, values);
 
         uint256 length = _data.collaborators.length;
-        for (uint8 i = 0; i < length; ++i) {
+        for (uint8 i = 0; i < length; i++) {
             metadata = JsonUtil.set(metadata, "collaborators.-1", _data.collaborators[i]);
         }
 
