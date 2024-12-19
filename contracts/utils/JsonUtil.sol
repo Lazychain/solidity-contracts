@@ -490,79 +490,68 @@ library JsonUtil {
         return findToken(tokens, 0, path, jsonBlob);
     }
 
-    // Helper function to check if a path contains dots
-    function containsDot(string memory str) internal pure returns (bool) {
-        bytes memory strBytes = bytes(str);
-        for (uint256 i = 0; i < strBytes.length; i++) {
-            if (strBytes[i] == bytes1(".")) {
-                return true;
-            }
-        }
-        return false;
-    }
+    // /// @notice Processes a segment of a JSON path
+    // /// @dev Handles both object properties and array indices
+    // /// @param tokens Array of parsed tokens
+    // /// @param parentToken Index of parent token
+    // /// @param segment Path segment to process
+    // /// @param jsonBlob Original JSON string
+    // /// @return Index of found token
+    // function processPathSegment(
+    //     JsonParser.Token[] memory tokens,
+    //     uint256 parentToken,
+    //     string memory segment,
+    //     string memory jsonBlob
+    // ) private pure returns (uint256) {
+    //     bytes memory segmentBytes = bytes(segment);
 
-    /// @notice Processes a segment of a JSON path
-    /// @dev Handles both object properties and array indices
-    /// @param tokens Array of parsed tokens
-    /// @param parentToken Index of parent token
-    /// @param segment Path segment to process
-    /// @param jsonBlob Original JSON string
-    /// @return Index of found token
-    function processPathSegment(
-        JsonParser.Token[] memory tokens,
-        uint256 parentToken,
-        string memory segment,
-        string memory jsonBlob
-    ) private pure returns (uint256) {
-        bytes memory segmentBytes = bytes(segment);
+    //     // Find array bracket if exists
+    //     int256 bracketPos = -1;
+    //     for (uint256 i = 0; i < segmentBytes.length; i++) {
+    //         if (segmentBytes[i] == "[") {
+    //             bracketPos = int256(i);
+    //             break;
+    //         }
+    //     }
 
-        // Find array bracket if exists
-        int256 bracketPos = -1;
-        for (uint256 i = 0; i < segmentBytes.length; i++) {
-            if (segmentBytes[i] == "[") {
-                bracketPos = int256(i);
-                break;
-            }
-        }
+    //     // Handle array access
+    //     if (bracketPos >= 0) {
+    //         // Get array name (before bracket)
+    //         string memory arrayName = substring(segment, 0, uint256(bracketPos));
 
-        // Handle array access
-        if (bracketPos >= 0) {
-            // Get array name (before bracket)
-            string memory arrayName = substring(segment, 0, uint256(bracketPos));
+    //         // Get array index (between brackets)
+    //         string memory indexStr = substring(segment, uint256(bracketPos) + 1, segmentBytes.length - 1);
+    //         uint256 index = strToUint(indexStr);
 
-            // Get array index (between brackets)
-            string memory indexStr = substring(segment, uint256(bracketPos) + 1, segmentBytes.length - 1);
-            uint256 index = strToUint(indexStr);
+    //         // Find array token
+    //         uint256 arrayToken = findToken(tokens, parentToken, arrayName, jsonBlob);
+    //         if (arrayToken == 0 || tokens[arrayToken].jsonType != JsonParser.JsonType.ARRAY) {
+    //             return 0;
+    //         }
 
-            // Find array token
-            uint256 arrayToken = findToken(tokens, parentToken, arrayName, jsonBlob);
-            if (arrayToken == 0 || tokens[arrayToken].jsonType != JsonParser.JsonType.ARRAY) {
-                return 0;
-            }
+    //         // Find element at index
+    //         uint256 currentIndex = 0;
+    //         uint256 currentToken = arrayToken + 1;
 
-            // Find element at index
-            uint256 currentIndex = 0;
-            uint256 currentToken = arrayToken + 1;
+    //         while (
+    //             currentToken < tokens.length &&
+    //             tokens[currentToken].startSet &&
+    //             tokens[currentToken].start < tokens[arrayToken].end
+    //         ) {
+    //             if (currentIndex == index) {
+    //                 // Found target element
+    //                 return currentToken;
+    //             }
+    //             currentIndex++;
+    //             currentToken++;
+    //         }
 
-            while (
-                currentToken < tokens.length &&
-                tokens[currentToken].startSet &&
-                tokens[currentToken].start < tokens[arrayToken].end
-            ) {
-                if (currentIndex == index) {
-                    // Found target element
-                    return currentToken;
-                }
-                currentIndex++;
-                currentToken++;
-            }
+    //         return 0;
+    //     }
 
-            return 0;
-        }
-
-        // Regular property access
-        return findToken(tokens, parentToken, segment, jsonBlob);
-    }
+    //     // Regular property access
+    //     return findToken(tokens, parentToken, segment, jsonBlob);
+    // }
 
     function findArrayElement(
         JsonParser.Token[] memory tokens,
