@@ -17,7 +17,6 @@ interface INFTLotteryFactory {
     function createLottery(
         address nftContract,
         uint256 fee,
-        uint8 threshold,
         address fairyringContract,
         address decrypter
     ) external returns (address);
