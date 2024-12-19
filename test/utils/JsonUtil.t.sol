@@ -2,7 +2,9 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 import { JsonUtil } from "../../contracts/utils/JsonUtil.sol";
+import { JsonParser } from "../../contracts/utils/JsonParser.sol";
 
 contract JsonUtilTest is Test {
     string private constant SIMPLE_JSON = '{"name":"John","age":30,"city":"New York"}';
@@ -73,5 +75,17 @@ contract JsonUtilTest is Test {
         assertTrue(JsonUtil.validate(ARRAY_JSON));
         assertTrue(JsonUtil.validate(COMPLEX_JSON));
         assertFalse(JsonUtil.validate("{invalid json}"));
+    }
+
+    function test_TokenParsing() public {
+        (uint8 returnCode, JsonParser.Token[] memory tokens, uint256 count) = JsonParser.parse(SIMPLE_JSON, 128);
+        require(returnCode == JsonParser.RETURN_SUCCESS, "Parse failed");
+
+        for (uint i = 0; i < count; i++) {
+            if (tokens[i].jsonType == JsonParser.JsonType.STRING) {
+                string memory extracted = JsonParser.getBytes(SIMPLE_JSON, tokens[i].start + 1, tokens[i].end - 1);
+                console.log("Token %s: %s", i, extracted);
+            }
+        }
     }
 }
