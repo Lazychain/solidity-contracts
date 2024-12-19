@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
+import { IFairyringContract, IDecrypter } from "../Ifairyring.sol";
+import "hardhat/console.sol";
 
 /**
  * @title MockFairyRing
  * @notice A mock implementation of the FairyRing randomness contract using commit-reveal scheme
  * @dev This contract simulates the FairyBlock randomness for testing purposes
  */
-contract MockFairyRing {
+contract MockFairyRing is IFairyringContract, IDecrypter {
     ////////////
     // ERRORS //
     ////////////
@@ -108,11 +110,11 @@ contract MockFairyRing {
     }
 
     /**
-     * @notice Gets the latest randomness value and its block height
-     * @return The latest random value and its block height
+     * @notice Gets the latest randomness value
+     * @return Latest random value
      */
     function latestRandomness() external view returns (bytes32, uint256) {
-        return (latestRandom, latestHeight);
+        return (latestRandom, uint256(latestRandom));
     }
 
     /**
@@ -121,6 +123,11 @@ contract MockFairyRing {
      */
     function getLatestRandomness() external view returns (bytes32, uint256) {
         return (latestRandom, uint256(latestRandom));
+    }
+
+    function getRandomnessByHeight(uint256) external view returns (uint256) {
+        // TOD: impl getting from heigth instead of latest
+        return latestHeight;
     }
 
     /**
@@ -147,6 +154,10 @@ contract MockFairyRing {
         // TODO: must be similar to commitRandomness()
     }
 
+    function decrypt(uint8[] memory c, uint8[] memory skbytes) external returns (uint8[] memory) {
+        // TODO: we dont know at this point what should be here.
+    }
+
     /**
      * @notice Who is the owner?
      * @return The owner of the contract
@@ -169,4 +180,3 @@ contract MockFairyRing {
         emit OwnershipTransferred(newOwner);
     }
 }
-
