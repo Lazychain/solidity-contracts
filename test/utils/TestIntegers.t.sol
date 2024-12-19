@@ -2,11 +2,14 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../../contracts/utils/Integers.sol";
+import "@Lazychain/solidity-contracts/contracts/utils/Integers.sol";
 
 contract IntegersTest is Test {
     using Integers for uint256;
     using Integers for int256;
+
+    error InvalidHexString();
+    error InvalidHexCharacter();
 
     function testToStringUint256() public {
         assertEq(uint256(0).toString(), "0");
@@ -39,7 +42,7 @@ contract IntegersTest is Test {
     }
 
     function testInvalidHexString() public {
-        vm.expectRevert("Invalid hex string");
+        vm.expectRevert(InvalidHexString.selector);
         Integers.fromHexString("0x");
     }
 }

@@ -91,7 +91,10 @@ library Integers {
     function fromHexString(string memory _str) internal pure returns (uint256) {
         bytes memory strBytes = bytes(_str);
         uint256 strBytesLength = strBytes.length;
-        if (strBytesLength >= 3 && strBytes[0] == "0" && (strBytes[1] == "x" || strBytes[1] == "X"))
+        if (strBytesLength < 3) revert InvalidHexString();
+
+        // Check for 0x prefix
+        if (strBytes[0] != "0" || (strBytes[1] != "x" && strBytes[1] != "X")) 
             revert InvalidHexString();
 
         uint256 result = 0;

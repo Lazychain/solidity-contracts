@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import { MockFairyRing } from "../../../contracts/apps/mocks/fairyring.sol";
+import { MockFairyRing } from "@Lazychain/solidity-contracts/contracts/apps/mocks/fairyring.sol";
 
 contract MockFairyRingTest is Test {
     MockFairyRing public mockFairyRing;
@@ -28,8 +28,11 @@ contract MockFairyRingTest is Test {
     function testInitialState() public view {
         assertEq(mockFairyRing.operator(), operator);
         assertEq(mockFairyRing.latestHeight(), 0);
-        (bytes32 randomness, ) = mockFairyRing.latestRandomness();
-        assertEq(randomness, bytes32(0));
+
+        (bytes32 randomHash, uint256 randomNumber) = mockFairyRing.latestRandomness();
+        assertEq(randomHash, bytes32(0));
+        assertEq(randomNumber, 0);
+
     }
 
     function testCommitRandomness() public {
@@ -70,8 +73,10 @@ contract MockFairyRingTest is Test {
         mockFairyRing.revealRandomness(randomValue, secret);
 
         // Verify state changes
-        (bytes32 randomness, ) = mockFairyRing.latestRandomness();
-        assertEq(randomness, randomValue);
+
+        (bytes32 randomHash, uint256 randomNumber) = mockFairyRing.latestRandomness();
+        assertEq(randomHash, randomValue);
+
         assertEq(mockFairyRing.latestHeight(), commitBlock);
 
         // Verify commitment was marked as revealed
@@ -190,8 +195,9 @@ contract MockFairyRingTest is Test {
         mockFairyRing.revealRandomness(randomValue, secret);
         vm.stopPrank();
 
-        (bytes32 randomness, ) = mockFairyRing.getLatestRandomness();
-        assertEq(randomness, randomValue);
+        (bytes32 randomHash, uint256 randomNumber) = mockFairyRing.latestRandomness();
+        assertEq(randomHash, randomValue);
+
     }
 
     function testGetRandomnessByHeight() public {
@@ -233,7 +239,8 @@ contract MockFairyRingTest is Test {
 
         assertEq(mockFairyRing.getRandomnessByAddress(alice), uint256(randomValue2));
 
-        (bytes32 randomness, ) = mockFairyRing.latestRandomness();
-        assertEq(randomness, randomValue2);
+        (bytes32 randomHash, uint256 randomNumber) = mockFairyRing.latestRandomness();
+        assertEq(randomHash, randomValue2);
+
     }
 }

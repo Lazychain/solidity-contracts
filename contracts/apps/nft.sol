@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import { Integers } from "../utils/Integers.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { ERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import { Integers } from "../utils/Integers.sol";
 
 contract LazyNFT is ERC721, ERC721Enumerable, Ownable {
     uint16 private constant _TOKEN_CAP = 4;
     uint256 private _nextTokenId = 0;
 
-    error TokenCapExceeded();
+    error LazyNFT__TokenCapExceeded();
 
     constructor(
         address initialOwner,
@@ -39,7 +39,7 @@ contract LazyNFT is ERC721, ERC721Enumerable, Ownable {
     }
 
     function safeMint(address to) public onlyOwner {
-        if (_nextTokenId >= _TOKEN_CAP) revert TokenCapExceeded();
+        if (_nextTokenId >= _TOKEN_CAP) revert LazyNFT__TokenCapExceeded();
         uint256 tokenId = _nextTokenId++;
         _safeMint(to, tokenId);
     }

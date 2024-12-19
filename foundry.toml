@@ -10,7 +10,11 @@ remappings = [
     'forge-std/=lib/forge-std/src/',
     '@Lazychain/solidity-contracts/=./',
     '@openzeppelin/=node_modules/@openzeppelin/',
+    'erc721a/=node_modules/erc721a/',
 ]
+# libraries = [
+#     "contracts/utils/JsonStore.sol:JsonStore:0x00000000000000000000000000000F043a000007",
+# ]
 evm_version = 'paris'
 extra_output = [
     "abi",
@@ -24,11 +28,12 @@ fail_on_revert = true
 
 # Optimizer
 optimizer = true
-optimizer_runs = 200
+optimizer_runs = 1000
+optimizer_details = { constantOptimizer = true, yul = true, deduplicate = true }
 
 # Write permission for JsonStore
 fs_permissions = [
-    { access = "write", path = "./src/contracts/utils/JsonStore.sol" },
+    { access = "write", path = "./contracts/utils/JsonStore.sol" },
 ]
 ignored_warnings_from = ['lib', 'test', 'contracts/test']
 via_ir = true
@@ -50,6 +55,7 @@ dictionary_weight = 80
 [invariant]
 runs = 1000
 depth = 128
+fail_on_revert = true
 
 # Format
 [fmt]
@@ -58,11 +64,20 @@ multiline_func_header = 'attributes_first'
 sort_imports = true
 contract_new_lines = true
 quote_style = 'double'
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+number_underscore = "preserve"
+wrap_comments = false
+ignore = []
 
 # Documentation
 [doc]
 out = 'docs'
 title = 'Lazychain Smart Contract Documentation'
+book = "./book.toml"
+repository = "https://github.com/Lazychain/docs"
 
 [profile.ci]
 verbosity = 4
