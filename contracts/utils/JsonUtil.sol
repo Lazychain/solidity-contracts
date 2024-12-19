@@ -32,7 +32,15 @@ library JsonUtil {
         uint256 index = findPath(tokens, _path, _jsonBlob);
         if (index == 0) revert JsonUtil__PathNotFound();
 
-        return JsonParser.getBytes(_jsonBlob, tokens[index].start, tokens[index].end);
+        // Get value based on token type
+        JsonParser.Token memory token = tokens[index];
+        if (token.jsonType == JsonParser.JsonType.STRING) {
+            // For string values, remove the quotes
+            return JsonParser.getBytes(_jsonBlob, token.start + 1, token.end - 1);
+        }
+
+        // For other types (numbers, booleans, etc), return as is
+        return JsonParser.getBytes(_jsonBlob, token.start, token.end);
     }
 
     /// @notice Gets raw JSON value at specified path without processing
@@ -74,7 +82,7 @@ library JsonUtil {
     /// @param _path The path to the desired value
     /// @return The boolean value at the specified path
     function getBool(string memory _jsonBlob, string memory _path) internal pure returns (bool) {
-        string memory value = getRaw(_jsonBlob, _path);
+        string memory value = get(_jsonBlob, _path);
         return JsonParser.parseBool(value);
     }
 
@@ -434,14 +442,14 @@ library JsonUtil {
         string memory path,
         string memory jsonBlob
     ) internal pure returns (uint256) {
-        // Start from root token
         uint256 currentToken = 0;
 
-        // Single key without dots
+        // Handle direct path without dots
         if (!containsDot(path)) {
             return findToken(tokens, currentToken, path, jsonBlob);
         }
 
+        // Split path by dots
         bytes memory pathBytes = bytes(path);
         uint256 startIndex = 0;
 
@@ -450,7 +458,7 @@ library JsonUtil {
             if (pathBytes[i] == bytes1(".")) {
                 string memory segment = substring(path, startIndex, i);
                 currentToken = findToken(tokens, currentToken, segment, jsonBlob);
-                if (currentToken == 0) revert JsonUtil__PathNotFound();
+                if (currentToken == 0) return 0;
                 startIndex = i + 1;
             }
         }
@@ -459,7 +467,6 @@ library JsonUtil {
         if (startIndex < pathBytes.length) {
             string memory finalSegment = substring(path, startIndex, pathBytes.length);
             currentToken = findToken(tokens, currentToken, finalSegment, jsonBlob);
-            if (currentToken == 0) revert JsonUtil__PathNotFound();
         }
 
         return currentToken;
@@ -551,43 +558,27 @@ library JsonUtil {
 
         JsonParser.Token memory parent = tokens[parentToken];
         if (parent.jsonType == JsonParser.JsonType.OBJECT) {
-            // For each child token in the object
             for (uint256 i = parentToken + 1; i < tokens.length; i++) {
                 if (!tokens[i].startSet) continue;
 
-                // Key tokens must be strings
+                // Check if it's a key token (string type)
                 if (tokens[i].jsonType == JsonParser.JsonType.STRING) {
-                    // Get the actual string content between quotes
-                    string memory keyName = JsonParser.getBytes(
+                    // Get the actual key by extracting from the quotes
+                    string memory currentKey = JsonParser.getBytes(
                         jsonBlob,
-                        tokens[i].start + 1, // Skip first quote
-                        tokens[i].end - 1 // Skip last quote
+                        tokens[i].start + 1, // start after quote
+                        tokens[i].end - 1 // end before quote
                     );
 
-                    // Debug: Print the extracted key
-                    string memory extractedKey = keyName;
-
-                    // This will help us see what's actually being compared
-                    if (JsonParser.strCompare(extractedKey, key) == 0) {
-                        if (i + 1 < tokens.length) {
-                            return i + 1; // Next token is the value
-                        }
+                    // Compare with target key
+                    if (JsonParser.strCompare(currentKey, key) == 0) {
+                        return i + 1; // Return index of value token
                     }
                 }
 
-                // Skip next token (value)
-                i++;
-            }
-        } else if (parent.jsonType == JsonParser.JsonType.ARRAY && containsBrackets(key)) {
-            uint256 index = parseArrayIndex(key);
-            uint256 currentIndex = 0;
-
-            for (uint256 i = parentToken + 1; i < tokens.length; i++) {
-                if (tokens[i].startSet) {
-                    if (currentIndex == index) {
-                        return i;
-                    }
-                    currentIndex++;
+                // Skip value token
+                if (i + 1 < tokens.length) {
+                    i++;
                 }
             }
         }
@@ -737,7 +728,7 @@ library JsonUtil {
         string memory jsonString
     ) private pure returns (string memory) {
         if (token.jsonType == JsonParser.JsonType.STRING) {
-            return JsonParser.getBytes(jsonString, token.start + 1, token.end - 1); // -1 to skip closing quote
+            return JsonParser.getBytes(jsonString, token.start, token.end); // -1 to skip closing quote
         } else if (token.jsonType == JsonParser.JsonType.PRIMITIVE) {
             return JsonParser.getBytes(jsonString, token.start, token.end);
         }
