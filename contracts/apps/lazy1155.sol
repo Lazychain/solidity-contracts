@@ -39,7 +39,7 @@ contract Lazy1155 is ERC1155, Ownable, ERC1155Pausable, ERC1155Burnable, ERC1155
         if (!isOwnerOfToken(from, tokenId)) revert Lazy1155__NoBalanceForTokenId();
 
         string memory uri = Strings.replace(super.uri(tokenId), "{id}", Integers.toString(tokenId), 1);
-        console.log("[%s]", uri);
+        //console.log("[%s]", uri);
         return uri;
     }
 
@@ -74,7 +74,7 @@ contract Lazy1155 is ERC1155, Ownable, ERC1155Pausable, ERC1155Burnable, ERC1155
     function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public onlyOwner {
         uint256 totalSuply = totalSupply();
         uint256 totalAmount = 0;
-        for (uint256 i = 0; i < amounts.length; ++i) {
+        for (uint256 i = 0; i < amounts.length; i++) {
             // TODO: overflow?
             totalAmount += amounts[i];
         }

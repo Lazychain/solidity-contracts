@@ -21,20 +21,24 @@ abstract contract NFTLotteryFactory is INFTLotteryFactory {
     error NFTLotteryFactory__UnsupportedNFTStandards();
 
     function createLottery(
-        address nftContract,
+        address[] memory nftContract,
         address decrypter,
         uint256 fee,
-        uint8 threshold,
         address fairyring
     ) public returns (address) {
-        bool isERC721 = _supportsInterface(nftContract, type(IERC721).interfaceId);
-        bool isERC1155 = _supportsInterface(nftContract, type(IERC1155).interfaceId);
+        // TODO: check nftContract not empty, case erc721 should be length = 1
+        bool isERC721 = false;
+        bool isERC1155 = false;
+        for (uint256 i = 0; i < nftContract.length; i++) {
+            isERC721 = _supportsInterface(nftContract[0], type(IERC721).interfaceId);
+            isERC1155 = _supportsInterface(nftContract[i], type(IERC1155).interfaceId);
+        }
 
-        address nftHandler;
+        address[] memory nftHandler;
         NFTStandards standard;
 
-        if (isERC721) {
-            nftHandler = address(new ERC721Handler(nftContract));
+        if (isERC721 && nftContract.length == 1) {
+            nftHandler[0] = address(new ERC721Handler(nftContract[0]));
             standard = NFTStandards.ERC721;
         } else if (isERC1155) {
             // Example
@@ -47,14 +51,16 @@ abstract contract NFTLotteryFactory is INFTLotteryFactory {
             amounts[0] = 1000;
             // amounts[1] = 1000;
             // amounts[2] = 2000;
-
-            nftHandler = address(new ERC1155Handler(nftContract, ids, amounts));
+            // TODO: use `Collection` struct from Lottery
+            for (uint256 i = 0; i < nftContract.length; i++) {
+                nftHandler[i] = address(new ERC1155Handler(nftContract[i], ids, amounts));
+            }
             standard = NFTStandards.ERC1155;
         } else {
             revert NFTLotteryFactory__UnsupportedNFTStandards();
         }
 
-        address lotteryAddress = _deployLottery(nftHandler, fee, threshold, fairyring, decrypter);
+        address lotteryAddress = _deployLottery(nftHandler, fee, fairyring, decrypter);
 
         lotteryTypes[lotteryAddress] = standard;
         emit LotteryCreated(lotteryAddress, standard);
@@ -71,26 +77,25 @@ abstract contract NFTLotteryFactory is INFTLotteryFactory {
     }
 
     function _deployLottery(
-        address nftHandler,
+        address[] memory nftHandler,
         uint256 fee,
-        uint8 threshold,
         address fairyringContract,
         address decrypter
     ) internal returns (address) {
-        NFTLotteryProxy lottery = new NFTLotteryProxy(nftHandler, fee, threshold, fairyringContract, decrypter);
+        NFTLotteryProxy lottery = new NFTLotteryProxy(nftHandler, fee, fairyringContract, decrypter);
         return address(lottery);
     }
 }
 
 contract NFTLotteryProxy {
-    address private immutable nftHandler;
+    address[] private nftHandler;
     address private immutable implementation;
 
-    constructor(address _nftHandler, uint256 _fee, uint8 _threshold, address _fairyringContract, address _decrypter) {
+    constructor(address[] memory _nftHandler, uint256 _fee, address _fairyringContract, address _decrypter) {
         nftHandler = _nftHandler;
 
         // Deploy implementation contract
-        implementation = address(new NFTLottery(_nftHandler, _fee, _threshold, _fairyringContract, _decrypter));
+        implementation = address(new NFTLottery(_nftHandler, _fee, _fairyringContract, _decrypter));
     }
 
     fallback() external payable {

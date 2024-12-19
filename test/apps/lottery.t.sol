@@ -125,7 +125,7 @@ contract LotteryTest is Test, ERC1155Holder {
 
         // the owner is LotteryTest
         // Construct Lottery
-        _lottery = new NFTLottery(address(_fairyringContract), _fee, address(_fairyringContract), _nftList1155);
+        _lottery = new NFTLottery(_nftList1155, _fee, address(_fairyringContract), address(_fairyringContract));
 
         // Set approval for all NFTs to Loterry as `Operator`
         for (uint256 i = 0; i < 4; ++i) {
