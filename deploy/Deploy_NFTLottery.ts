@@ -23,7 +23,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
 	console.log(JSON.stringify(ERC721Contract.address, null, 2))
 
-	// address _decrypter, uint256 _fee, uint8 _threshold, address _fairyringContract, address _nftContract
+	// address _decrypter, uint256 _fee, address _fairyringContract, address _nftContract
 	const lotteryContract: DeployResult = await hre.deployments.deploy(lottery, {
 		from: deployer,
 		args: [fairyRingContract.address, 0.1, 20, fairyRingContract.address, ERC721Contract.address],

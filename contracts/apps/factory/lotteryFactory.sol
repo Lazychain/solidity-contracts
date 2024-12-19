@@ -24,7 +24,6 @@ abstract contract NFTLotteryFactory is INFTLotteryFactory {
         address nftContract,
         address decrypter,
         uint256 fee,
-        uint8 threshold,
         address fairyring
     ) public returns (address) {
         bool isERC721 = _supportsInterface(nftContract, type(IERC721).interfaceId);
@@ -54,7 +53,7 @@ abstract contract NFTLotteryFactory is INFTLotteryFactory {
             revert NFTLotteryFactory__UnsupportedNFTStandards();
         }
 
-        address lotteryAddress = _deployLottery(nftHandler, fee, threshold, fairyring, decrypter);
+        address lotteryAddress = _deployLottery(nftHandler, fee, fairyring, decrypter);
 
         lotteryTypes[lotteryAddress] = standard;
         emit LotteryCreated(lotteryAddress, standard);
@@ -73,11 +72,10 @@ abstract contract NFTLotteryFactory is INFTLotteryFactory {
     function _deployLottery(
         address nftHandler,
         uint256 fee,
-        uint8 threshold,
         address fairyringContract,
         address decrypter
     ) internal returns (address) {
-        NFTLotteryProxy lottery = new NFTLotteryProxy(nftHandler, fee, threshold, fairyringContract, decrypter);
+        NFTLotteryProxy lottery = new NFTLotteryProxy(nftHandler, fee, fairyringContract, decrypter);
         return address(lottery);
     }
 }
@@ -86,11 +84,11 @@ contract NFTLotteryProxy {
     address private immutable nftHandler;
     address private immutable implementation;
 
-    constructor(address _nftHandler, uint256 _fee, uint8 _threshold, address _fairyringContract, address _decrypter) {
+    constructor(address _nftHandler, uint256 _fee, address _fairyringContract, address _decrypter) {
         nftHandler = _nftHandler;
 
         // Deploy implementation contract
-        implementation = address(new NFTLottery(_nftHandler, _fee, _threshold, _fairyringContract, _decrypter));
+        implementation = address(new NFTLottery(_nftHandler, _fee, _fairyringContract, _decrypter));
     }
 
     fallback() external payable {
