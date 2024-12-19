@@ -490,101 +490,6 @@ library JsonUtil {
         return findToken(tokens, 0, path, jsonBlob);
     }
 
-    // /// @notice Processes a segment of a JSON path
-    // /// @dev Handles both object properties and array indices
-    // /// @param tokens Array of parsed tokens
-    // /// @param parentToken Index of parent token
-    // /// @param segment Path segment to process
-    // /// @param jsonBlob Original JSON string
-    // /// @return Index of found token
-    // function processPathSegment(
-    //     JsonParser.Token[] memory tokens,
-    //     uint256 parentToken,
-    //     string memory segment,
-    //     string memory jsonBlob
-    // ) private pure returns (uint256) {
-    //     bytes memory segmentBytes = bytes(segment);
-
-    //     // Find array bracket if exists
-    //     int256 bracketPos = -1;
-    //     for (uint256 i = 0; i < segmentBytes.length; i++) {
-    //         if (segmentBytes[i] == "[") {
-    //             bracketPos = int256(i);
-    //             break;
-    //         }
-    //     }
-
-    //     // Handle array access
-    //     if (bracketPos >= 0) {
-    //         // Get array name (before bracket)
-    //         string memory arrayName = substring(segment, 0, uint256(bracketPos));
-
-    //         // Get array index (between brackets)
-    //         string memory indexStr = substring(segment, uint256(bracketPos) + 1, segmentBytes.length - 1);
-    //         uint256 index = strToUint(indexStr);
-
-    //         // Find array token
-    //         uint256 arrayToken = findToken(tokens, parentToken, arrayName, jsonBlob);
-    //         if (arrayToken == 0 || tokens[arrayToken].jsonType != JsonParser.JsonType.ARRAY) {
-    //             return 0;
-    //         }
-
-    //         // Find element at index
-    //         uint256 currentIndex = 0;
-    //         uint256 currentToken = arrayToken + 1;
-
-    //         while (
-    //             currentToken < tokens.length &&
-    //             tokens[currentToken].startSet &&
-    //             tokens[currentToken].start < tokens[arrayToken].end
-    //         ) {
-    //             if (currentIndex == index) {
-    //                 // Found target element
-    //                 return currentToken;
-    //             }
-    //             currentIndex++;
-    //             currentToken++;
-    //         }
-
-    //         return 0;
-    //     }
-
-    //     // Regular property access
-    //     return findToken(tokens, parentToken, segment, jsonBlob);
-    // }
-
-    function findArrayElement(
-        JsonParser.Token[] memory tokens,
-        uint256 arrayToken,
-        uint256 targetIndex
-    ) private pure returns (uint256) {
-        uint256 currentIndex;
-        uint256 i = arrayToken + 1;
-
-        while (i < tokens.length && !isEndOfArray(tokens, arrayToken, i)) {
-            if (tokens[i].startSet) {
-                if (currentIndex == targetIndex) {
-                    return i;
-                }
-                currentIndex++;
-            }
-            i++;
-        }
-
-        return 0;
-    }
-
-    function isEndOfArray(
-        JsonParser.Token[] memory tokens,
-        uint256 arrayStart,
-        uint256 currentPos
-    ) private pure returns (bool) {
-        return
-            currentPos >= tokens.length ||
-            tokens[currentPos].startSet == false ||
-            tokens[currentPos].start > tokens[arrayStart].end;
-    }
-
     function strToUint(string memory str) private pure returns (uint256) {
         bytes memory b = bytes(str);
         uint256 result = 0;
@@ -594,77 +499,6 @@ library JsonUtil {
             result = result * 10 + digit;
         }
         return result;
-    }
-
-    function hasArrayAccess(string memory path) private pure returns (bool) {
-        bytes memory pathBytes = bytes(path);
-        for (uint256 i = 0; i < pathBytes.length; i++) {
-            if (pathBytes[i] == "[") return true;
-        }
-        return false;
-    }
-
-    function parseArrayAccess(string memory segment) private pure returns (string memory name, uint256 index) {
-        bytes memory segmentBytes = bytes(segment);
-        uint256 bracketPos;
-
-        // Find position of [
-        for (uint256 i = 0; i < segmentBytes.length; i++) {
-            if (segmentBytes[i] == "[") {
-                bracketPos = i;
-                break;
-            }
-        }
-
-        // Extract name part
-        name = new string(bracketPos);
-        for (uint256 i = 0; i < bracketPos; i++) {
-            assembly {
-                mstore8(add(add(name, 0x20), i), mload(add(add(segmentBytes, 0x20), i)))
-            }
-        }
-
-        // Extract index part
-        uint256 indexLength = segmentBytes.length - bracketPos - 2; // -2 for [ and ]
-        bytes memory indexStr = new bytes(indexLength);
-        for (uint256 i = 0; i < indexLength; i++) {
-            indexStr[i] = segmentBytes[bracketPos + 1 + i];
-        }
-
-        index = strToUint(string(indexStr));
-    }
-
-    /// @notice Processes array access in JSON path
-    /// @dev Handles numeric index access for arrays
-    /// @param tokens Array of parsed tokens
-    /// @param parentToken Index of parent token
-    /// @param indexStr String representation of array index
-    /// @return Index of found token
-    function processArrayAccess(
-        JsonParser.Token[] memory tokens,
-        uint256 parentToken,
-        string memory indexStr
-    ) private pure returns (uint256) {
-        require(parentToken < tokens.length, "Invalid parent token");
-
-        JsonParser.Token memory parent = tokens[parentToken];
-        if (parent.jsonType != JsonParser.JsonType.ARRAY) {
-            revert JsonUtil__PathNotFound();
-        }
-
-        uint256 index = uint256(JsonParser.parseInt(indexStr));
-        uint256 currentIndex = 0;
-
-        for (uint256 i = parentToken + 1; i < tokens.length; i++) {
-            if (!tokens[i].startSet) continue;
-
-            if (currentIndex == index) {
-                return i;
-            }
-            currentIndex++;
-        }
-
-        revert JsonUtil__PathNotFound();
     }
 
     /// @notice Finds a token in an object by key
@@ -699,63 +533,6 @@ library JsonUtil {
                 }
             }
             current++;
-        }
-
-        return 0;
-    }
-
-    // Helper to check if key contains array access pattern [n]
-    function containsBrackets(string memory str) private pure returns (bool) {
-        bytes memory strBytes = bytes(str);
-        uint256 len = strBytes.length;
-        if (len < 3) return false; // Minimum valid pattern is "x[0]"
-        return strBytes[len - 1] == "]" && bytes(str).length > 2;
-    }
-
-    // Helper to parse array index from key like "array[0]"
-    function parseArrayIndex(string memory str) private pure returns (uint256) {
-        bytes memory strBytes = bytes(str);
-        uint256 len = strBytes.length;
-
-        // Find opening bracket
-        uint256 start;
-        for (start = 0; start < len; start++) {
-            if (strBytes[start] == "[") break;
-        }
-
-        // Extract number between brackets
-        string memory indexStr = substring(str, start + 1, len - 1);
-        return uint256(JsonParser.parseInt(indexStr));
-    }
-
-    /// @notice Finds a token in an array by index
-    /// @dev Converts string index to number and finds corresponding token
-    /// @param tokens Array of parsed tokens
-    /// @param parentToken Index of parent token
-    /// @param indexStr String representation of array index
-    /// @return Index of found token
-    function findArrayToken(
-        JsonParser.Token[] memory tokens,
-        uint256 parentToken,
-        string memory indexStr
-    ) private pure returns (uint256) {
-        // Try to parse index
-        int256 index = JsonParser.parseInt(indexStr);
-        if (index < 0) return 0;
-
-        JsonParser.Token memory parent = tokens[parentToken];
-        uint256 arrayIndex = 0;
-        uint256 searchEnd = parentToken + parent.size;
-
-        if (searchEnd > tokens.length) searchEnd = tokens.length;
-
-        for (uint256 i = parentToken + 1; i < searchEnd; ++i) {
-            if (tokens[i].startSet) {
-                if (arrayIndex == uint256(index)) {
-                    return i;
-                }
-                ++arrayIndex;
-            }
         }
 
         return 0;
@@ -834,22 +611,5 @@ library JsonUtil {
     /// @return Formatted JSON string value
     function formatJsonValue(string memory value) private pure returns (string memory) {
         return string(abi.encodePacked('"', value, '"'));
-    }
-
-    /// @notice Extracts value from a token
-    /// @dev Handles different token types (string, primitive)
-    /// @param token Token to extract value from
-    /// @param jsonString Original JSON string
-    /// @return Extracted value as string
-    function getTokenValue(
-        JsonParser.Token memory token,
-        string memory jsonString
-    ) private pure returns (string memory) {
-        if (token.jsonType == JsonParser.JsonType.STRING) {
-            return JsonParser.getBytes(jsonString, token.start, token.end); // -1 to skip closing quote
-        } else if (token.jsonType == JsonParser.JsonType.PRIMITIVE) {
-            return JsonParser.getBytes(jsonString, token.start, token.end);
-        }
-        return "";
     }
 }
