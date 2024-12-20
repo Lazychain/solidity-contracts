@@ -5,7 +5,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IFairyringContract, IDecrypter } from "./Ifairyring.sol";
 // import { IERC721A } from "erc721a/contracts/IERC721A.sol";
 import { Lazy1155 } from "./lazy1155.sol";
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 // import { console } from "forge-std/console.sol";
 import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
@@ -65,15 +65,10 @@ contract NFTLottery is Ownable, ERC1155Holder {
     /// @notice This will help with generating random numbers
     IFairyringContract public fairyringContract;
 
-    /// @notice Contains all the requerid nft data
-    struct Collection {
-        Lazy1155 nft; // This will maintain the NFTs
-        uint256 tokenIndex; // This will maintain the internal TokenId index of NFTs
-        uint256 maxTokens; //  This will maintain the internal Max tokens of NFTs as cached value
-    }
-
     /// @notice Collection
-    Collection[] private _collections;
+    Lazy1155 private _nft;
+
+    uint256 private _tokensIdCap;
 
     /// @notice Indicates if the campaign is live or not.
     bool public isCampaignOpen = false;
@@ -86,34 +81,20 @@ contract NFTLottery is Ownable, ERC1155Holder {
      * @param _decrypter Address of the decryption contract
      * @param _fee The fee required to submit a draw
      * @param _fairyringContract Address of the fairy ring contract
-     * @param _addressList A list of NFTs Addresses
+     * @param _erc1155 A list of NFTs Addresses
      */
-    constructor(
-        address _decrypter,
-        uint256 _fee,
-        address _fairyringContract,
-        address[] memory _addressList
-    ) Ownable(msg.sender) {
-        // We expect here a _nftContracts.length == 4 for probability 7% (1%+2%+2%+2% distance algorithm)
-        if (_addressList.length > 4) revert NFTLottery__InternalError("_addressList should be max length 4 elements");
-
-        uint256 expectedMaxTokens = 1;
-        for (uint256 i = 0; i < _addressList.length; ++i) {
-            Lazy1155 nft = Lazy1155(_addressList[i]);
-            uint256 maxTokens = _getMaxNFTs(nft);
-            // console.log("A[%s] E[%s] A[%s]", address(nft), expectedMaxTokens, maxTokens);
-            if (maxTokens != expectedMaxTokens)
-                revert NFTLottery__TooFewNFTs("At least 1 nft element should exist on every nft contract");
-
-            _collections.push(Collection({ nft: nft, tokenIndex: 0, maxTokens: maxTokens }));
-            totalCollectionItems = totalCollectionItems + maxTokens;
-            expectedMaxTokens = expectedMaxTokens * 2;
+    constructor(address _erc1155, uint256 _fee, address _fairyringContract, address _decrypter) Ownable(msg.sender) {
+        _nft = Lazy1155(_erc1155);
+        _tokensIdCap = 0;
+        for (uint256 i = 0; i < 255; i++) {
+            // Scan from zero all tokensId assigned to owner
+            if (_nft.tokenExists(i)) {
+                _tokensIdCap++;
+            }
         }
-
         decrypterContract = IDecrypter(_decrypter);
         fee = _fee;
         fairyringContract = IFairyringContract(_fairyringContract);
-
         emit LotteryInitialized(_decrypter, _fee);
     }
 
@@ -180,7 +161,7 @@ contract NFTLottery is Ownable, ERC1155Holder {
 
         //console.log("guess[%s] random[%s] distance [%s]", normalizedGuess, normalizedRandom, distance);
         // If distance is less than 4, we got a winner
-        if (distance < 4) {
+        if (distance < _tokensIdCap) {
             // Winner case
             isWinner = true;
             // We start from the Top winning according to distance and
@@ -188,19 +169,15 @@ contract NFTLottery is Ownable, ERC1155Holder {
             // to check if there are tokens in other levels
             // Here, could be the case that the winner win an nft, but there are no more
             // on low levels prices. In this case, is a lose.
-            for (uint256 i = distance; i < _collections.length; i++) {
-                Collection storage collection = _collections[i];
-
-                // Check if there are NFTs remaining
-                if (collection.tokenIndex < collection.maxTokens) {
-                    collection.nft.safeTransferFrom(address(this), msg.sender, collection.tokenIndex, 1, "0x0");
-                    nftId = collection.tokenIndex;
-                    emit LotteryDrawn(msg.sender, isWinner, collection.tokenIndex, totalDraws);
-                    emit MintedNft(msg.sender, collection.tokenIndex);
-                    ++collection.tokenIndex;
+            for (uint256 tokenId = distance; tokenId < _tokensIdCap; tokenId++) {
+                // Check if there are quantity of NFT id TokenId remaining
+                if (_nft.balanceOf(address(this), tokenId) > 0) {
+                    _nft.safeTransferFrom(address(this), msg.sender, tokenId, 1, "0x0");
+                    emit LotteryDrawn(msg.sender, isWinner, tokenId, totalDraws);
+                    emit MintedNft(msg.sender, tokenId);
                     ++user.winCount;
                     userDetails[msg.sender] = user;
-                    return nftId;
+                    return tokenId;
                 }
             }
             revert NFTLottery__TooFewNFTs("No more NFTs");
@@ -217,28 +194,24 @@ contract NFTLottery is Ownable, ERC1155Holder {
             revert NFTLottery__TooFewPooPoints();
         }
 
+        console.log(" Points[%s]", user.pooPoints);
         // Check if there are NFTs remaining starting from low nfts types
-        for (uint256 i = _collections.length - 1; i > 0; i--) {
+        for (uint256 tokenId = _tokensIdCap - 1; tokenId > 0; tokenId--) {
             // i = 3,2,1,0
-            Collection storage collection = _collections[i];
-            // console.log("TokenId[%s] max[%s]", collection.tokenIndex, collection.maxTokens);
-            // console.log(" Points[%s]", user.pooPoints);
+            console.log("TokenId[%s]", tokenId);
+            uint256 balance = _nft.balanceOf(address(this), tokenId);
+            console.log("TokenId[%s] max[%s]", tokenId, balance);
 
             // Check if there are NFTs remaining
-            if (collection.tokenIndex < collection.maxTokens) {
+            if (balance > 0) {
                 // Deduct 100 poo points
                 user.pooPoints -= 100;
                 userDetails[msg.sender] = user;
 
                 // Transfer NFT to the user
-                nftId = collection.tokenIndex;
-                collection.nft.safeTransferFrom(address(this), msg.sender, nftId, 1, "0x0");
-                emit MintedNft(msg.sender, collection.tokenIndex);
-
-                // Update index of NFTs
-                ++collection.tokenIndex;
-
-                return nftId;
+                _nft.safeTransferFrom(address(this), msg.sender, tokenId, 1, "0x0");
+                emit MintedNft(msg.sender, tokenId);
+                return tokenId;
             }
         }
 
