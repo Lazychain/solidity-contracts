@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import { MockFairyRing } from "@Lazychain/solidity-contracts/contracts/apps/mocks/fairyring.sol";
+import { MockFairyRing } from "../../../contracts/apps/mocks/fairyring.sol";
 
 contract MockFairyRingTest is Test {
     MockFairyRing public mockFairyRing;
