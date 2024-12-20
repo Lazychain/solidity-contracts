@@ -84,13 +84,21 @@ abstract contract NFTLotteryFactory is INFTLotteryFactory {
 
 contract NFTLotteryProxy {
     address private immutable nftHandler;
+    address private immutable decrypter;
+    address private immutable fairyring;
+    uint8 private immutable th;
+    uint256 private immutable fee;
     address private immutable implementation;
 
     constructor(address _nftHandler, uint256 _fee, uint8 _threshold, address _fairyringContract, address _decrypter) {
         nftHandler = _nftHandler;
 
         // Deploy implementation contract
-        implementation = address(new NFTLottery(_nftHandler, _fee, _threshold, _fairyringContract, _decrypter));
+        // implementation = address(new NFTLottery(_nftHandler, _fee, _threshold, _fairyringContract, _decrypter)); // Temporary Soln
+        fee = _fee;
+        th = _threshold;
+        fairyring = _fairyringContract;
+        decrypter = _decrypter;
     }
 
     fallback() external payable {
