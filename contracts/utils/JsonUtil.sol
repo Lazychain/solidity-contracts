@@ -17,9 +17,11 @@ library JsonUtil {
     error JsonUtil__InvalidJson();
     error JsonUtil__PathNotFound();
     error JsonUtil__TypeMismatch();
+    error JsonUtil__InvalidNumber();
+    error JsonUtil__LengthMismatch();
     error JsonUtil__InvalidJsonPath();
-    error LengthMismatch();
-    error InvalidSubstringIndices();
+    error JsonUtil__EndIndexOutofBounds();
+    error JsonUtil__InvalidSubstringIndices();
 
     /// @notice Retrieves a string value from a JSON blob at a specified path
     /// @param _jsonBlob The JSON string to parse
@@ -29,10 +31,18 @@ library JsonUtil {
         (JsonParser.Token[] memory tokens, uint256 count) = parseJson(_jsonBlob);
         if (count == 0) revert JsonUtil__InvalidJson();
 
-        uint256 index = findPath(tokens, _path, _jsonBlob);
-        if (index == 0) revert JsonUtil__PathNotFound();
+        uint256 tokenIndex = findPath(tokens, _path, _jsonBlob);
+        if (tokenIndex == 0) revert JsonUtil__PathNotFound();
 
-        return JsonParser.getBytes(_jsonBlob, tokens[index].start, tokens[index].end);
+        JsonParser.Token memory token = tokens[tokenIndex];
+
+        // For string values, remove quotes
+        if (token.jsonType == JsonParser.JsonType.STRING) {
+            return JsonParser.getBytes(_jsonBlob, token.start + 1, token.end - 1);
+        }
+
+        // For other values (numbers, booleans), return as is
+        return JsonParser.getBytes(_jsonBlob, token.start, token.end);
     }
 
     /// @notice Gets raw JSON value at specified path without processing
@@ -74,7 +84,7 @@ library JsonUtil {
     /// @param _path The path to the desired value
     /// @return The boolean value at the specified path
     function getBool(string memory _jsonBlob, string memory _path) internal pure returns (bool) {
-        string memory value = getRaw(_jsonBlob, _path);
+        string memory value = get(_jsonBlob, _path);
         return JsonParser.parseBool(value);
     }
 
@@ -134,7 +144,7 @@ library JsonUtil {
         string[] memory _values
     ) internal pure returns (string memory) {
         uint256 pathsLength = _paths.length;
-        if (pathsLength == _values.length) revert LengthMismatch();
+        if (pathsLength == _values.length) revert JsonUtil__LengthMismatch();
         string memory result = _jsonBlob;
         for (uint256 i = 0; i < pathsLength; ++i) {
             result = set(result, _paths[i], _values[i]);
@@ -187,7 +197,7 @@ library JsonUtil {
         int256[] memory _values
     ) internal pure returns (string memory) {
         uint256 pathsLength = _paths.length;
-        if (pathsLength == _values.length) revert LengthMismatch();
+        if (pathsLength == _values.length) revert JsonUtil__LengthMismatch();
         string memory result = _jsonBlob;
         for (uint256 i = 0; i < pathsLength; ++i) {
             result = setInt(result, _paths[i], _values[i]);
@@ -219,7 +229,7 @@ library JsonUtil {
         uint256[] memory _values
     ) internal pure returns (string memory) {
         uint256 pathsLength = _paths.length;
-        if (pathsLength == _values.length) revert LengthMismatch();
+        if (pathsLength == _values.length) revert JsonUtil__LengthMismatch();
         string memory result = _jsonBlob;
         for (uint256 i = 0; i < pathsLength; ++i) {
             result = setUint(result, _paths[i], _values[i]);
@@ -247,7 +257,7 @@ library JsonUtil {
         bool[] memory _values
     ) internal pure returns (string memory) {
         uint256 pathsLength = _paths.length;
-        if (pathsLength == _values.length) revert LengthMismatch();
+        if (pathsLength == _values.length) revert JsonUtil__LengthMismatch();
         string memory result = _jsonBlob;
         for (uint256 i = 0; i < pathsLength; ++i) {
             result = setBool(result, _paths[i], _values[i]);
@@ -287,7 +297,7 @@ library JsonUtil {
         string[] memory _values
     ) internal pure returns (string memory) {
         uint256 replacePathsLength = _replacePaths.length;
-        if (replacePathsLength == _values.length) revert LengthMismatch();
+        if (replacePathsLength == _values.length) revert JsonUtil__LengthMismatch();
         string memory result = _jsonBlob;
         for (uint256 i = 0; i < replacePathsLength; ++i) {
             result = subReplace(result, _searchPath, _replacePaths[i], _values[i]);
@@ -311,7 +321,7 @@ library JsonUtil {
         int256[] memory _values
     ) internal pure returns (string memory) {
         uint256 replacePathsLength = _replacePaths.length;
-        if (replacePathsLength == _values.length) revert LengthMismatch();
+        if (replacePathsLength == _values.length) revert JsonUtil__LengthMismatch();
         string memory result = _jsonBlob;
         for (uint256 i = 0; i < replacePathsLength; ++i) {
             result = subReplaceInt(result, _searchPath, _replacePaths[i], _values[i]);
@@ -335,7 +345,7 @@ library JsonUtil {
         uint256[] memory _values
     ) internal pure returns (string memory) {
         uint256 replacePathsLength = _replacePaths.length;
-        if (replacePathsLength == _values.length) revert LengthMismatch();
+        if (replacePathsLength == _values.length) revert JsonUtil__LengthMismatch();
         string memory result = _jsonBlob;
         for (uint256 i = 0; i < replacePathsLength; ++i) {
             result = subReplaceUint(result, _searchPath, _replacePaths[i], _values[i]);
@@ -359,7 +369,7 @@ library JsonUtil {
         bool[] memory _values
     ) internal pure returns (string memory) {
         uint256 replacePathsLength = _replacePaths.length;
-        if (replacePathsLength == _values.length) revert LengthMismatch();
+        if (replacePathsLength == _values.length) revert JsonUtil__LengthMismatch();
         string memory result = _jsonBlob;
         for (uint256 i = 0; i < replacePathsLength; ++i) {
             result = subReplaceBool(result, _searchPath, _replacePaths[i], _values[i]);
@@ -435,93 +445,114 @@ library JsonUtil {
         string memory jsonBlob
     ) internal pure returns (uint256) {
         bytes memory pathBytes = bytes(path);
-        uint256 pathBytesLength = pathBytes.length;
-        if (pathBytesLength == 0) revert JsonUtil__InvalidJsonPath();
 
-        uint256 currentToken = 0;
-        uint256 startIndex = 0;
-        bool foundDot = false;
-
-        for (uint256 i = 0; i < pathBytesLength; ++i) {
+        // Handle nested paths with dots
+        for (uint256 i = 0; i < pathBytes.length; i++) {
             if (pathBytes[i] == ".") {
-                if (i == 0 || i == pathBytesLength - 1 || foundDot) {
-                    revert JsonUtil__InvalidJsonPath();
-                }
-                if (startIndex < i) {
-                    string memory segment = substring(path, startIndex, i);
-                    currentToken = processPathSegment(tokens, currentToken, segment, jsonBlob);
-                    if (currentToken == 0) revert JsonUtil__PathNotFound();
-                }
-                startIndex = i + 1;
-                foundDot = true;
-            } else {
-                foundDot = false;
+                return handleNestedPath(tokens, path, i, jsonBlob);
             }
         }
 
-        // Process final segment
-        if (startIndex < pathBytesLength) {
-            string memory finalSegment = substring(path, startIndex, pathBytesLength);
-            currentToken = processPathSegment(tokens, currentToken, finalSegment, jsonBlob);
-            if (currentToken == 0) revert JsonUtil__PathNotFound();
+        // Handle array access
+        for (uint256 i = 0; i < pathBytes.length; i++) {
+            if (pathBytes[i] == "[") {
+                return handleArrayAccess(tokens, path, i, jsonBlob);
+            }
         }
 
-        return currentToken;
+        // Simple property access
+        return findToken(tokens, 0, path, jsonBlob);
     }
 
-    /// @notice Processes a segment of a JSON path
-    /// @dev Handles both object properties and array indices
-    /// @param tokens Array of parsed tokens
-    /// @param parentToken Index of parent token
-    /// @param segment Path segment to process
+    /// @notice Handles nested JSON path traversal with dot notation
+    /// @dev Processes paths like "data.users" or "data.users[0].name"
+    /// @param tokens Array of parsed JSON tokens
+    /// @param path Full JSON path being processed
+    /// @param dotIndex Index position of the dot in the path
     /// @param jsonBlob Original JSON string
-    /// @return Index of found token
-    function processPathSegment(
+    /// @return uint256 Token index of the found path, or 0 if not found
+    /// @custom:throws JsonUtil__PathNotFound if path is invalid
+    /// @custom:example path="data.users[0].name" dotIndex=4 (position of first dot)
+    function handleNestedPath(
         JsonParser.Token[] memory tokens,
-        uint256 parentToken,
-        string memory segment,
+        string memory path,
+        uint256 dotIndex,
         string memory jsonBlob
     ) private pure returns (uint256) {
-        bytes memory segBytes = bytes(segment);
+        string memory firstPart = substring(path, 0, dotIndex);
+        string memory remainingPath = substring(path, dotIndex + 1, bytes(path).length);
 
-        // Check if segment is array access
-        if (segBytes.length > 2 && segBytes[0] == "[" && segBytes[segBytes.length - 1] == "]") {
-            // Extract the index part without using slice notation
-            string memory indexStr = substring(segment, 1, segBytes.length - 1);
-            return processArrayAccess(tokens, parentToken, indexStr);
+        // Check if first part contains array access
+        bytes memory firstPartBytes = bytes(firstPart);
+        for (uint256 i = 0; i < firstPartBytes.length; i++) {
+            if (firstPartBytes[i] == "[") {
+                uint256 arrayToken = handleArrayAccess(tokens, firstPart, i, jsonBlob);
+                if (arrayToken == 0) return 0;
+                return findPath(tokens, remainingPath, jsonBlob);
+            }
         }
 
-        return findToken(tokens, parentToken, segment, jsonBlob);
+        uint256 firstToken = findToken(tokens, 0, firstPart, jsonBlob);
+        if (firstToken == 0) return 0;
+
+        return findPath(tokens, remainingPath, jsonBlob);
     }
 
-    /// @notice Processes array access in JSON path
-    /// @dev Handles numeric index access for arrays
-    /// @param tokens Array of parsed tokens
-    /// @param parentToken Index of parent token
-    /// @param indexStr String representation of array index
-    /// @return Index of found token
-    function processArrayAccess(
+    /// @notice Handles array access within JSON paths
+    /// @dev Processes array indexing like "users[0]" or "[1]"
+    /// @param tokens Array of parsed JSON tokens
+    /// @param path JSON path containing array access
+    /// @param bracketIndex Index position of the opening bracket
+    /// @param jsonBlob Original JSON string
+    /// @return uint256 Token index of the array element, or 0 if not found
+    /// @custom:throws JsonUtil__PathNotFound if array index is invalid
+    /// @custom:example path="users[0]" bracketIndex=5 (position of '[')
+    function handleArrayAccess(
         JsonParser.Token[] memory tokens,
-        uint256 parentToken,
-        string memory indexStr
+        string memory path,
+        uint256 bracketIndex,
+        string memory jsonBlob
     ) private pure returns (uint256) {
-        uint256 index = uint256(JsonParser.parseInt(indexStr));
-        JsonParser.Token memory parent = tokens[parentToken];
+        string memory arrayName = substring(path, 0, bracketIndex);
+        string memory indexStr = substring(path, bracketIndex + 1, bytes(path).length - 1);
+        uint256 targetIndex = strToUint(indexStr);
 
-        if (parent.jsonType != JsonParser.JsonType.ARRAY) {
-            revert JsonUtil__PathNotFound();
+        uint256 arrayToken = findToken(tokens, 0, arrayName, jsonBlob);
+        if (arrayToken == 0) return 0;
+
+        if (tokens[arrayToken].jsonType != JsonParser.JsonType.ARRAY) {
+            return 0;
         }
 
-        uint256 arrayIndex = 0;
-        uint256 tokensLength = tokens.length;
-        for (uint256 i = parentToken + 1; i < tokensLength && arrayIndex <= index; ++i) {
-            if (tokens[i].startSet && arrayIndex == index) {
-                return i;
+        // Find element at index
+        uint256 elemIndex = 0;
+        uint256 pos = arrayToken + 1;
+
+        while (pos < tokens.length && tokens[pos].startSet && tokens[pos].start < tokens[arrayToken].end) {
+            if (elemIndex == targetIndex) {
+                return pos;
             }
-            ++arrayIndex;
+            elemIndex++;
+            pos++;
         }
+        return 0;
+    }
 
-        revert JsonUtil__PathNotFound();
+    /// @notice Converts a string representation of a number to uint256
+    /// @dev Only processes positive integers
+    /// @param str String containing the number to convert
+    /// @return uint256 The converted number
+    /// @custom:throws JsonUtil__InvalidNumber if string contains non-numeric characters
+    /// @custom:example str="123" returns 123
+    function strToUint(string memory str) private pure returns (uint256) {
+        bytes memory b = bytes(str);
+        uint256 result = 0;
+        for (uint256 i = 0; i < b.length; i++) {
+            uint8 digit = uint8(b[i]) - 48;
+            if (digit > 9) revert JsonUtil__InvalidNumber();
+            result = result * 10 + digit;
+        }
+        return result;
     }
 
     /// @notice Finds a token in an object by key
@@ -537,72 +568,25 @@ library JsonUtil {
         string memory key,
         string memory jsonBlob
     ) private pure returns (uint256) {
-        if (parentToken >= tokens.length) return 0;
+        uint256 current = (parentToken == 0) ? 1 : parentToken + 1;
+        JsonParser.Token memory endToken = tokens[parentToken];
 
-        JsonParser.Token memory parent = tokens[parentToken];
-        bool isObject = parent.jsonType == JsonParser.JsonType.OBJECT;
-        bool isArray = parent.jsonType == JsonParser.JsonType.ARRAY;
+        while (current < tokens.length && tokens[current].startSet) {
+            // Break if we're past the parent's scope
+            if (parentToken != 0 && tokens[current].start >= endToken.end) break;
 
-        // For array access, try to parse key as index
-        if (isArray) {
-            return findArrayToken(tokens, parentToken, key);
-        }
-
-        // Calculate how many tokens to search through
-        uint256 searchEnd = parent.size > 0 ? parentToken + parent.size : tokens.length;
-        if (searchEnd > tokens.length) searchEnd = tokens.length;
-
-        // For objects, look for key:value pairs
-        if (isObject) {
-            for (uint256 i = parentToken + 1; i < searchEnd; i += 2) {
-                // Step by 2 for key:value pairs
-                if (!tokens[i].startSet) continue;
-
-                // Get the key name without quotes
-                string memory keyName = JsonParser.getBytes(
+            if (tokens[current].jsonType == JsonParser.JsonType.STRING) {
+                string memory currentKey = JsonParser.getBytes(
                     jsonBlob,
-                    tokens[i].start + 1, // Skip opening quote
-                    tokens[i].end - 1 // Skip closing quote
+                    tokens[current].start + 1,
+                    tokens[current].end - 1
                 );
 
-                if (JsonParser.strCompare(keyName, key) == 0) {
-                    if (i + 1 >= tokens.length) return 0; // Safety check
-                    return i + 1; // Return index of value
+                if (JsonParser.strCompare(currentKey, key) == 0) {
+                    return current + 1; // Return next token which is the value
                 }
             }
-        }
-
-        return 0;
-    }
-
-    /// @notice Finds a token in an array by index
-    /// @dev Converts string index to number and finds corresponding token
-    /// @param tokens Array of parsed tokens
-    /// @param parentToken Index of parent token
-    /// @param indexStr String representation of array index
-    /// @return Index of found token
-    function findArrayToken(
-        JsonParser.Token[] memory tokens,
-        uint256 parentToken,
-        string memory indexStr
-    ) private pure returns (uint256) {
-        // Try to parse index
-        int256 index = JsonParser.parseInt(indexStr);
-        if (index < 0) return 0;
-
-        JsonParser.Token memory parent = tokens[parentToken];
-        uint256 arrayIndex = 0;
-        uint256 searchEnd = parentToken + parent.size;
-
-        if (searchEnd > tokens.length) searchEnd = tokens.length;
-
-        for (uint256 i = parentToken + 1; i < searchEnd; ++i) {
-            if (tokens[i].startSet) {
-                if (arrayIndex == uint256(index)) {
-                    return i;
-                }
-                ++arrayIndex;
-            }
+            current++;
         }
 
         return 0;
@@ -613,14 +597,14 @@ library JsonUtil {
     /// @param str Source string
     /// @param startIndex Start index of substring
     /// @param endIndex End index of substring
-    /// @return Extracted substring
     function substring(string memory str, uint256 startIndex, uint256 endIndex) private pure returns (string memory) {
-        bytes memory strBytes = bytes(str);
-        if (startIndex <= endIndex && endIndex <= strBytes.length) revert InvalidSubstringIndices();
+        if (endIndex < startIndex) revert JsonUtil__InvalidSubstringIndices();
+        if (bytes(str).length < endIndex) revert JsonUtil__EndIndexOutofBounds();
 
+        bytes memory strBytes = bytes(str);
         bytes memory result = new bytes(endIndex - startIndex);
-        for (uint256 i = startIndex; i < endIndex; ++i) {
-            result[i - startIndex] = strBytes[i];
+        for (uint256 i = 0; i < endIndex - startIndex; i++) {
+            result[i] = strBytes[startIndex + i];
         }
         return string(result);
     }
@@ -681,22 +665,5 @@ library JsonUtil {
     /// @return Formatted JSON string value
     function formatJsonValue(string memory value) private pure returns (string memory) {
         return string(abi.encodePacked('"', value, '"'));
-    }
-
-    /// @notice Extracts value from a token
-    /// @dev Handles different token types (string, primitive)
-    /// @param token Token to extract value from
-    /// @param jsonString Original JSON string
-    /// @return Extracted value as string
-    function getTokenValue(
-        JsonParser.Token memory token,
-        string memory jsonString
-    ) private pure returns (string memory) {
-        if (token.jsonType == JsonParser.JsonType.STRING) {
-            return JsonParser.getBytes(jsonString, token.start + 1, token.end - 1); // -1 to skip closing quote
-        } else if (token.jsonType == JsonParser.JsonType.PRIMITIVE) {
-            return JsonParser.getBytes(jsonString, token.start, token.end);
-        }
-        return "";
     }
 }

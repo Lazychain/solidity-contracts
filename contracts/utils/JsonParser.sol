@@ -108,33 +108,36 @@ library JsonParser {
         bytes memory s
     ) internal pure returns (uint8 returnCode, Token memory token) {
         uint256 start = parser.pos;
-        ++parser.pos;
+        parser.pos++; // Skip opening quote
 
-        uint256 length = s.length;
-        for (; parser.pos < length; ++parser.pos) {
+        for (; parser.pos < s.length; parser.pos++) {
             bytes1 c = s[parser.pos];
 
+            // Found closing quote
             if (c == '"') {
                 (bool success, Token memory newToken) = allocateToken(parser, tokens);
                 if (!success) {
                     parser.pos = start;
                     return (RETURN_ERROR_NO_MEM, token);
                 }
-                token = fillToken(newToken, JsonType.STRING, start + 1, parser.pos);
+
+                // Include quotes in token bounds
+                token = fillToken(
+                    newToken,
+                    JsonType.STRING,
+                    start, // Keep quote in bounds
+                    parser.pos + 1 // Include closing quote
+                );
                 return (RETURN_SUCCESS, token);
             }
 
-            // Handle escaped characters
-            if (uint8(c) == 92 && parser.pos + 1 < s.length) {
-                ++parser.pos;
-                bytes1 nextChar = s[parser.pos];
-                if (isValidEscapeChar(nextChar)) {
-                    continue;
-                }
-                parser.pos = start;
-                return (RETURN_ERROR_INVALID_JSON, token);
+            // Handle escapes
+            if (c == "\\" && parser.pos + 1 < s.length) {
+                parser.pos++; // Skip escape char
+                continue;
             }
         }
+
         parser.pos = start;
         return (RETURN_ERROR_PART, token);
     }
@@ -381,6 +384,9 @@ library JsonParser {
     /// @param end Ending index
     /// @return Extracted substring
     function getBytes(string memory json, uint256 start, uint256 end) public pure returns (string memory) {
+        require(end > start, "Invalid indices");
+        require(end <= bytes(json).length, "Index out of bounds");
+
         bytes memory s = bytes(json);
         bytes memory result = new bytes(end - start);
         for (uint256 i = start; i < end; ++i) {
