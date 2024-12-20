@@ -98,7 +98,7 @@ library PriorityQueue {
         copiedQueue.heap = new Entry[](length);
 
         // Copy each entry directly
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < length; i++) {
             copiedQueue.heap[i] = Entry({ priority: self.heap[i].priority, value: self.heap[i].value });
         }
 

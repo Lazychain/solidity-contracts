@@ -115,14 +115,14 @@ library Base64 {
         uint256 bytesTableLength = bytesTable.length;
         // Initialize the decoding lookup table (map characters to their indices)
         uint8[128] memory decodeTable;
-        for (uint8 i = 0; i < bytesTableLength; ++i) {
+        for (uint8 i = 0; i < bytesTableLength; i++) {
             decodeTable[uint8(bytesTable[i])] = i;
         }
 
         // Calculate padding and the actual decoded output length
         uint256 padding = 0;
-        if (bytes(data)[len - 1] == "=") ++padding; // Check for padding at the end
-        if (len > 1 && bytes(data)[len - 2] == "=") ++padding; // Check for second padding character if present
+        if (bytes(data)[len - 1] == "=") padding++; // Check for padding at the end
+        if (len > 1 && bytes(data)[len - 2] == "=") padding++; // Check for second padding character if present
         uint256 decodedLen = (len * 3) / 4 - padding; // Calculate the length of the decoded data
 
         // Allocate memory for the decoded result
@@ -138,9 +138,9 @@ library Base64 {
                 uint32(decodeTable[uint8(bytes(data)[i + 3])]);
 
             // Extract the decoded bytes from the buffer
-            result[++resultIndex] = bytes1(uint8(buffer >> 16));
-            if (resultIndex < decodedLen) result[++resultIndex] = bytes1(uint8(buffer >> 8));
-            if (resultIndex < decodedLen) result[++resultIndex] = bytes1(uint8(buffer));
+            result[resultIndex++] = bytes1(uint8(buffer >> 16));
+            if (resultIndex < decodedLen) result[resultIndex++] = bytes1(uint8(buffer >> 8));
+            if (resultIndex < decodedLen) result[resultIndex++] = bytes1(uint8(buffer));
         }
 
         return result;
