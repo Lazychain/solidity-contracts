@@ -17,8 +17,10 @@ library JsonUtil {
     error JsonUtil__InvalidJson();
     error JsonUtil__PathNotFound();
     error JsonUtil__TypeMismatch();
-    error JsonUtil__InvalidJsonPath();
+    error JsonUtil__InvalidNumber();
     error JsonUtil__LengthMismatch();
+    error JsonUtil__InvalidJsonPath();
+    error JsonUtil__EndIndexOutofBounds();
     error JsonUtil__InvalidSubstringIndices();
 
     /// @notice Retrieves a string value from a JSON blob at a specified path
@@ -447,42 +449,14 @@ library JsonUtil {
         // Handle nested paths with dots
         for (uint256 i = 0; i < pathBytes.length; i++) {
             if (pathBytes[i] == ".") {
-                string memory firstPart = substring(path, 0, i);
-                string memory remainingPath = substring(path, i + 1, pathBytes.length);
-
-                uint256 firstToken = findToken(tokens, 0, firstPart, jsonBlob);
-                if (firstToken == 0) return 0;
-
-                return findPath(tokens, remainingPath, jsonBlob);
+                return handleNestedPath(tokens, path, i, jsonBlob);
             }
         }
 
         // Handle array access
         for (uint256 i = 0; i < pathBytes.length; i++) {
             if (pathBytes[i] == "[") {
-                string memory arrayName = substring(path, 0, i);
-                string memory indexStr = substring(path, i + 1, pathBytes.length - 1);
-                uint256 targetIndex = strToUint(indexStr);
-
-                uint256 arrayToken = findToken(tokens, 0, arrayName, jsonBlob);
-                if (arrayToken == 0) return 0;
-
-                if (tokens[arrayToken].jsonType != JsonParser.JsonType.ARRAY) {
-                    return 0;
-                }
-
-                // Find element at index
-                uint256 elemIndex = 0;
-                uint256 pos = arrayToken + 1;
-
-                while (pos < tokens.length && tokens[pos].startSet && tokens[pos].start < tokens[arrayToken].end) {
-                    if (elemIndex == targetIndex) {
-                        return pos;
-                    }
-                    elemIndex++;
-                    pos++;
-                }
-                return 0;
+                return handleArrayAccess(tokens, path, i, jsonBlob);
             }
         }
 
@@ -490,12 +464,92 @@ library JsonUtil {
         return findToken(tokens, 0, path, jsonBlob);
     }
 
+    /// @notice Handles nested JSON path traversal with dot notation
+    /// @dev Processes paths like "data.users" or "data.users[0].name"
+    /// @param tokens Array of parsed JSON tokens
+    /// @param path Full JSON path being processed
+    /// @param dotIndex Index position of the dot in the path
+    /// @param jsonBlob Original JSON string
+    /// @return uint256 Token index of the found path, or 0 if not found
+    /// @custom:throws JsonUtil__PathNotFound if path is invalid
+    /// @custom:example path="data.users[0].name" dotIndex=4 (position of first dot)
+    function handleNestedPath(
+        JsonParser.Token[] memory tokens,
+        string memory path,
+        uint256 dotIndex,
+        string memory jsonBlob
+    ) private pure returns (uint256) {
+        string memory firstPart = substring(path, 0, dotIndex);
+        string memory remainingPath = substring(path, dotIndex + 1, bytes(path).length);
+
+        // Check if first part contains array access
+        bytes memory firstPartBytes = bytes(firstPart);
+        for (uint256 i = 0; i < firstPartBytes.length; i++) {
+            if (firstPartBytes[i] == "[") {
+                uint256 arrayToken = handleArrayAccess(tokens, firstPart, i, jsonBlob);
+                if (arrayToken == 0) return 0;
+                return findPath(tokens, remainingPath, jsonBlob);
+            }
+        }
+
+        uint256 firstToken = findToken(tokens, 0, firstPart, jsonBlob);
+        if (firstToken == 0) return 0;
+
+        return findPath(tokens, remainingPath, jsonBlob);
+    }
+
+    /// @notice Handles array access within JSON paths
+    /// @dev Processes array indexing like "users[0]" or "[1]"
+    /// @param tokens Array of parsed JSON tokens
+    /// @param path JSON path containing array access
+    /// @param bracketIndex Index position of the opening bracket
+    /// @param jsonBlob Original JSON string
+    /// @return uint256 Token index of the array element, or 0 if not found
+    /// @custom:throws JsonUtil__PathNotFound if array index is invalid
+    /// @custom:example path="users[0]" bracketIndex=5 (position of '[')
+    function handleArrayAccess(
+        JsonParser.Token[] memory tokens,
+        string memory path,
+        uint256 bracketIndex,
+        string memory jsonBlob
+    ) private pure returns (uint256) {
+        string memory arrayName = substring(path, 0, bracketIndex);
+        string memory indexStr = substring(path, bracketIndex + 1, bytes(path).length - 1);
+        uint256 targetIndex = strToUint(indexStr);
+
+        uint256 arrayToken = findToken(tokens, 0, arrayName, jsonBlob);
+        if (arrayToken == 0) return 0;
+
+        if (tokens[arrayToken].jsonType != JsonParser.JsonType.ARRAY) {
+            return 0;
+        }
+
+        // Find element at index
+        uint256 elemIndex = 0;
+        uint256 pos = arrayToken + 1;
+
+        while (pos < tokens.length && tokens[pos].startSet && tokens[pos].start < tokens[arrayToken].end) {
+            if (elemIndex == targetIndex) {
+                return pos;
+            }
+            elemIndex++;
+            pos++;
+        }
+        return 0;
+    }
+
+    /// @notice Converts a string representation of a number to uint256
+    /// @dev Only processes positive integers
+    /// @param str String containing the number to convert
+    /// @return uint256 The converted number
+    /// @custom:throws JsonUtil__InvalidNumber if string contains non-numeric characters
+    /// @custom:example str="123" returns 123
     function strToUint(string memory str) private pure returns (uint256) {
         bytes memory b = bytes(str);
         uint256 result = 0;
         for (uint256 i = 0; i < b.length; i++) {
             uint8 digit = uint8(b[i]) - 48;
-            require(digit <= 9, "Invalid number");
+            if (digit > 9) revert JsonUtil__InvalidNumber();
             result = result * 10 + digit;
         }
         return result;
@@ -544,8 +598,8 @@ library JsonUtil {
     /// @param startIndex Start index of substring
     /// @param endIndex End index of substring
     function substring(string memory str, uint256 startIndex, uint256 endIndex) private pure returns (string memory) {
-        require(endIndex >= startIndex, "Invalid substring indices");
-        require(bytes(str).length >= endIndex, "End index out of bounds");
+        if (endIndex < startIndex) revert JsonUtil__InvalidSubstringIndices();
+        if (bytes(str).length < endIndex) revert JsonUtil__EndIndexOutofBounds();
 
         bytes memory strBytes = bytes(str);
         bytes memory result = new bytes(endIndex - startIndex);
