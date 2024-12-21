@@ -6,8 +6,7 @@ import { Strings } from "../utils/Strings.sol";
 import { ITokenMetadata } from "../interfaces/metadata/ITokenMetadata.sol";
 
 library TokenMetadataReader {
-    error TokenDoesNotExist(uint256 tokenId);
-    error InvalidMetadata(uint256 tokenId);
+    error TokenMetadataReader__TraitNotFound(string);
 
     function exists(address _tokenAddress, uint256 _tokenId) internal view returns (bool) {
         return ITokenMetadata(_tokenAddress).exists(_tokenId);
@@ -77,32 +76,75 @@ library TokenMetadataReader {
                 return JsonUtil.get(metadata, _tavp(i));
             }
         }
-        revert("Attribute not found");
+        revert TokenMetadataReader__TraitNotFound(_traitType);
     }
 
-    // function getTokenAttributeInt(
-    //     address _tokenAddress,
-    //     uint256 _tokenId,
-    //     string memory _traitType
-    // ) internal view returns (int256) {
-    //     return getTokenMetadataInt(_tokenAddress, _tokenId, _tavp(_traitType));
-    // }
+    function getTokenAttributeInt(
+        address _tokenAddress,
+        uint256 _tokenId,
+        string memory _traitType
+    ) internal view returns (int256) {
+        string memory metadata = getTokenMetadata(_tokenAddress, _tokenId);
 
-    // function getTokenAttributeUint(
-    //     address _tokenAddress,
-    //     uint256 _tokenId,
-    //     string memory _traitType
-    // ) internal view returns (uint256) {
-    //     return getTokenMetadataUint(_tokenAddress, _tokenId, _tavp(_traitType));
-    // }
+        for (uint256 i = 0; i < 10; i++) {
+            // First check if the trait_type exists at this index
+            string memory path = _tap(i);
+            if (!JsonUtil.exists(metadata, path)) {
+                break;
+            }
 
-    // function getTokenAttributeBool(
-    //     address _tokenAddress,
-    //     uint256 _tokenId,
-    //     string memory _traitType
-    // ) internal view returns (bool) {
-    //     return getTokenMetadataBool(_tokenAddress, _tokenId, _tavp(_traitType));
-    // }
+            // Get the trait_type value
+            string memory traitType = JsonUtil.get(metadata, path);
+
+            // Compare trait types using the helper function
+            if (stringsEqual(traitType, _traitType)) {
+                // Get the value path for this index
+                string memory valuePath = _tavp(i);
+                return JsonUtil.getInt(metadata, valuePath);
+            }
+        }
+        revert TokenMetadataReader__TraitNotFound(_traitType);
+    }
+
+    function getTokenAttributeUint(
+        address _tokenAddress,
+        uint256 _tokenId,
+        string memory _traitType
+    ) internal view returns (uint256) {
+        string memory metadata = getTokenMetadata(_tokenAddress, _tokenId);
+
+        for (uint256 i = 0; i < 10; i++) {
+            if (!JsonUtil.exists(metadata, _tap(i))) {
+                break;
+            }
+
+            string memory trait = JsonUtil.get(metadata, _tap(i));
+            if (stringsEqual(trait, _traitType)) {
+                return JsonUtil.getUint(metadata, _tavp(i));
+            }
+        }
+        revert TokenMetadataReader__TraitNotFound(_traitType);
+    }
+
+    function getTokenAttributeBool(
+        address _tokenAddress,
+        uint256 _tokenId,
+        string memory _traitType
+    ) internal view returns (bool) {
+        string memory metadata = getTokenMetadata(_tokenAddress, _tokenId);
+
+        for (uint256 i = 0; i < 10; i++) {
+            if (!JsonUtil.exists(metadata, _tap(i))) {
+                break;
+            }
+
+            string memory trait = JsonUtil.get(metadata, _tap(i));
+            if (stringsEqual(trait, _traitType)) {
+                return JsonUtil.getBool(metadata, _tavp(i));
+            }
+        }
+        revert TokenMetadataReader__TraitNotFound(_traitType);
+    }
 
     /// @dev Main function remains simple
     function hasTokenAttribute(
@@ -129,6 +171,16 @@ library TokenMetadataReader {
         return false;
     }
 
+    /// @dev Constructs path to trait_type at given array index
+    function _tap(uint256 index) internal pure returns (string memory) {
+        return string(abi.encodePacked("attributes[", toString(index), "].trait_type"));
+    }
+
+    /// @dev Constructs path to get value of an attribute at a specific index
+    function _tavp(uint256 index) internal pure returns (string memory) {
+        return string(abi.encodePacked("attributes[", toString(index), "].value"));
+    }
+
     /// @dev Helper for number to string conversion
     function toString(uint256 value) internal pure returns (string memory) {
         if (value == 0) {
@@ -152,15 +204,5 @@ library TokenMetadataReader {
     /// @dev Helper for string comparison
     function stringsEqual(string memory a, string memory b) internal pure returns (bool) {
         return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
-    }
-
-    /// @dev Constructs path to trait_type at given array index
-    function _tap(uint256 index) internal pure returns (string memory) {
-        return string(abi.encodePacked("attributes[", toString(index), "].trait_type"));
-    }
-
-    /// @dev Constructs path to get value of an attribute at a specific index
-    function _tavp(uint256 index) internal pure returns (string memory) {
-        return string(abi.encodePacked("attributes[", toString(index), "].value"));
     }
 }
