@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
+import { NFTLottery } from "../lottery.sol";
 
 interface INFTHandler {
     function transferNFT(address from, address to, uint256[] memory tokenIds, uint256[] memory amounts) external;
@@ -19,5 +20,5 @@ interface INFTLotteryFactory {
         uint256 fee,
         address fairyringContract,
         address decrypter
-    ) external returns (address);
+    ) external returns (NFTLottery);
 }

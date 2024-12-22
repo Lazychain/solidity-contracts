@@ -11,7 +11,7 @@ import { Lazy1155 } from "../../contracts/apps/lazy1155.sol";
 import { NFTLottery } from "../../contracts/apps/lottery.sol";
 import { IFairyringContract } from "../../contracts/apps/Ifairyring.sol";
 import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-// import { console } from "forge-std/console.sol";
+import { console } from "forge-std/console.sol";
 
 contract Handler is StdAssertions, StdUtils {
     NFTLottery private _lottery;
@@ -40,7 +40,7 @@ contract LotteryTest is Test, ERC1155Holder {
     // address[] private _nftList721;
 
     // test for 1155
-    Lazy1155 private nft1155;
+    Lazy1155 private _nft1155;
 
     IFairyringContract private _fairyringContract;
     Handler private _handler;
@@ -56,10 +56,9 @@ contract LotteryTest is Test, ERC1155Holder {
     receive() external payable {}
 
     uint256 private _fee = 1 ether;
+    uint256 private _tokensIdCap = 4;
 
     function setUp() public {
-        uint8 tokenCap = 4;
-
         // Setup
         _fundedUser = makeAddr("funded_user");
         deal(address(_fundedUser), 100 ether);
@@ -98,52 +97,51 @@ contract LotteryTest is Test, ERC1155Holder {
         // }
 
         // NFT Contructors and Minting 1155
-
-        // Construct NFT contract
-        Lazy1155 nft1155 = new Lazy1155(tokenCap, "ipfs://hash/{id}.json", 0); // we want to test mint, so =0
-
-        // Mint Tokens
-        uint256[] memory ids = new uint256[](tokenCap);
-        uint256[] memory amounts = new uint256[](tokenCap);
+        uint256[] memory ids = new uint256[](_tokensIdCap);
+        uint256[] memory amounts = new uint256[](_tokensIdCap);
+        uint256 totalEmittion = 0;
 
         uint256 quantity = 1;
-        for (uint256 tokenId = 0; tokenId < tokenCap; ++tokenId) {
+        for (uint256 tokenId = 0; tokenId < _tokensIdCap; tokenId++) {
             ids[tokenId] = tokenId;
             amounts[tokenId] = quantity;
+            totalEmittion += quantity;
             quantity *= 2;
         }
-        nft1155.mintBatch(address(this), ids, amounts, "");
-        assertEq(15, nft1155.totalSupply());
+
+        //console.log(totalEmittion);
+        // Construct NFT contract
+        _nft1155 = new Lazy1155(totalEmittion, "ipfs://hash/{id}.json", 0); // we want to test mint, so =0
+        // Mint Tokens
+        _nft1155.mintBatch(address(this), ids, amounts, "");
+        assertEq(15, _nft1155.totalSupply());
 
         // Random mock
         _fairyringContract = IFairyringContract(address(0));
 
         // the owner is LotteryTest
         // Construct Lottery
-        _lottery = new NFTLottery(address(nft1155), _fee, address(_fairyringContract), address(_fairyringContract));
+        _lottery = new NFTLottery(address(_nft1155), _fee, address(_fairyringContract), address(_fairyringContract));
 
         // Set approval for all NFTs to Loterry as `Operator`
-        nft1155.setApprovalForAll(address(_lottery), true);
-        bool isApproved = nft1155.isApprovedForAll(address(this), address(_lottery));
+        _nft1155.setApprovalForAll(address(_lottery), true);
+        bool isApproved = _nft1155.isApprovedForAll(address(this), address(_lottery));
         assertEq(true, isApproved);
 
         // transfer ownership of all NFT tokens to lottery contract
-        uint256 totalSupply = nft1155.totalSupply();
+        uint256 totalSupply = _nft1155.totalSupply();
         uint256 totalBalance = 0;
 
-        quantity = 1;
-        for (uint256 tokenId = 0; tokenId < tokenCap; ++tokenId) {
-            nft1155.safeTransferFrom(address(this), address(_lottery), tokenId, quantity, "");
-            quantity *= 2;
-            uint256 balance = nft1155.balanceOf(address(_lottery), tokenId);
-            assertEq(1, balance);
-            totalBalance += balance;
+        _nft1155.safeBatchTransferFrom(address(this), address(_lottery), ids, amounts, "");
+        for (uint256 tokenId = 0; tokenId < _tokensIdCap; tokenId++) {
+            totalBalance += _nft1155.balanceOf(address(_lottery), tokenId);
         }
         assertEq(totalSupply, totalBalance);
 
+        // handler for future use in invariant testing.
         _handler = new Handler(address(_lottery), _fundedUser);
         targetContract(address(_handler));
-        // emit log_string("setup OK.");
+        //emit log_string("setup OK.");
     }
 
     function testFail_Draw_Guess(uint8 guess) public {
