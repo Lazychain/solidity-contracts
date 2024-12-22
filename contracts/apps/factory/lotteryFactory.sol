@@ -82,6 +82,10 @@ contract NFTLotteryFactory is INFTLotteryFactory {
 
 contract NFTLotteryProxy {
     address private immutable nftHandler;
+    address private immutable decrypter;
+    address private immutable fairyring;
+    uint8 private immutable th;
+    uint256 private immutable fee;
     address private immutable implementation;
 
     NFTLottery private _lottery;
@@ -92,6 +96,10 @@ contract NFTLotteryProxy {
         // Deploy implementation contract
         _lottery = new NFTLottery(_nftHandler, _fee, _fairyringContract, _decrypter);
         implementation = address(_lottery);
+        fee = _fee;
+        th = _threshold;
+        fairyring = _fairyringContract;
+        decrypter = _decrypter;
     }
 
     function getLottery() external view returns (NFTLottery) {

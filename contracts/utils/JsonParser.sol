@@ -70,7 +70,7 @@ library JsonParser {
         }
         token = Token(JsonType.UNDEFINED, 0, 0, 0, false, false);
         tokens[parser.toknext] = token;
-        ++parser.toknext;
+        parser.toknext++;
         return (true, token);
     }
 
@@ -108,33 +108,36 @@ library JsonParser {
         bytes memory s
     ) internal pure returns (uint8 returnCode, Token memory token) {
         uint256 start = parser.pos;
-        ++parser.pos;
+        parser.pos++; // Skip opening quote
 
-        uint256 length = s.length;
-        for (; parser.pos < length; ++parser.pos) {
+        for (; parser.pos < s.length; parser.pos++) {
             bytes1 c = s[parser.pos];
 
+            // Found closing quote
             if (c == '"') {
                 (bool success, Token memory newToken) = allocateToken(parser, tokens);
                 if (!success) {
                     parser.pos = start;
                     return (RETURN_ERROR_NO_MEM, token);
                 }
-                token = fillToken(newToken, JsonType.STRING, start + 1, parser.pos);
+
+                // Include quotes in token bounds
+                token = fillToken(
+                    newToken,
+                    JsonType.STRING,
+                    start, // Keep quote in bounds
+                    parser.pos + 1 // Include closing quote
+                );
                 return (RETURN_SUCCESS, token);
             }
 
-            // Handle escaped characters
-            if (uint8(c) == 92 && parser.pos + 1 < s.length) {
-                ++parser.pos;
-                bytes1 nextChar = s[parser.pos];
-                if (isValidEscapeChar(nextChar)) {
-                    continue;
-                }
-                parser.pos = start;
-                return (RETURN_ERROR_INVALID_JSON, token);
+            // Handle escapes
+            if (c == "\\" && parser.pos + 1 < s.length) {
+                parser.pos++; // Skip escape char
+                continue;
             }
         }
+
         parser.pos = start;
         return (RETURN_ERROR_PART, token);
     }
@@ -160,7 +163,7 @@ library JsonParser {
         uint256 start = parser.pos;
         bool found = false;
         uint256 sLength = s.length;
-        for (; parser.pos < sLength; ++parser.pos) {
+        for (; parser.pos < sLength; parser.pos++) {
             bytes1 c = s[parser.pos];
             if (isTerminatingChar(c)) {
                 found = true;
@@ -184,7 +187,7 @@ library JsonParser {
         }
 
         token = fillToken(newToken, JsonType.PRIMITIVE, start, parser.pos);
-        --parser.pos;
+        parser.pos--;
         return (RETURN_SUCCESS, token);
     }
 
@@ -206,7 +209,7 @@ library JsonParser {
         Parser memory parser;
         (parser, tokens) = init(numberElements);
         uint256 sLength = s.length;
-        for (; parser.pos < sLength; ++parser.pos) {
+        for (; parser.pos < sLength; parser.pos++) {
             bytes1 c = s[parser.pos];
 
             if (isWhitespace(c)) continue;
@@ -227,7 +230,7 @@ library JsonParser {
                     // Propagate the actual error code instead of always returning INVALID_JSON
                     return (stringResult, tokens, 0);
                 }
-                if (parser.toksuper != -1) ++tokens[uint256(parser.toksuper)].size;
+                if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
                 continue;
             }
 
@@ -244,7 +247,7 @@ library JsonParser {
             if (isPrimitiveStartChar(c)) {
                 (uint8 primResult, ) = parsePrimitive(parser, tokens, s);
                 if (primResult != RETURN_SUCCESS) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
-                if (parser.toksuper != -1) ++tokens[uint256(parser.toksuper)].size;
+                if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
                 continue;
             }
 
@@ -273,7 +276,7 @@ library JsonParser {
         (bool success, Token memory token) = allocateToken(parser, tokens);
         if (!success) return false;
 
-        if (parser.toksuper != -1) ++tokens[uint256(parser.toksuper)].size;
+        if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
 
         token.jsonType = (s[parser.pos] == bytes1(0x7b)) ? JsonType.OBJECT : JsonType.ARRAY;
         token.start = parser.pos;
@@ -291,7 +294,7 @@ library JsonParser {
     function processClosingBracket(Parser memory parser, Token[] memory tokens, bytes1 c) internal pure returns (bool) {
         JsonType tokenType = (c == bytes1(0x7d)) ? JsonType.OBJECT : JsonType.ARRAY;
 
-        for (uint256 i = parser.toknext - 1; i < parser.toknext; --i) {
+        for (uint256 i = parser.toknext - 1; i < parser.toknext; i--) {
             Token memory token = tokens[i];
             if (token.startSet && !token.endSet) {
                 if (token.jsonType != tokenType) return false;
@@ -310,7 +313,7 @@ library JsonParser {
     /// @param parser Current parser state
     /// @param tokens Array of tokens being built
     function processComma(Parser memory parser, Token[] memory tokens) internal pure {
-        for (uint256 i = parser.toknext - 1; i < parser.toknext; --i) {
+        for (uint256 i = parser.toknext - 1; i < parser.toknext; i--) {
             if (
                 (tokens[i].jsonType == JsonType.ARRAY || tokens[i].jsonType == JsonType.OBJECT) &&
                 tokens[i].startSet &&
@@ -381,9 +384,12 @@ library JsonParser {
     /// @param end Ending index
     /// @return Extracted substring
     function getBytes(string memory json, uint256 start, uint256 end) public pure returns (string memory) {
+        require(end > start, "Invalid indices");
+        require(end <= bytes(json).length, "Index out of bounds");
+
         bytes memory s = bytes(json);
         bytes memory result = new bytes(end - start);
-        for (uint256 i = start; i < end; ++i) {
+        for (uint256 i = start; i < end; i++) {
             result[i - start] = s[i];
         }
         return string(result);
@@ -408,7 +414,7 @@ library JsonParser {
         uint256 divisor = 1;
 
         uint256 bresultLength = bresult.length;
-        for (uint256 i = 0; i < bresultLength; ++i) {
+        for (uint256 i = 0; i < bresultLength; i++) {
             if (bresult[i] == bytes1(0x2d)) {
                 negative = true;
             } else if (bresult[i] == bytes1(0x2e)) {
@@ -417,7 +423,7 @@ library JsonParser {
                 if (decimals && _b > 0) {
                     divisor *= 10;
                     mint = mint * 10 + int256(uint256(uint8(bresult[i]) - 48));
-                    --_b;
+                    _b--;
                 } else if (!decimals) {
                     mint = mint * 10 + int256(uint256(uint8(bresult[i]) - 48));
                 }
@@ -434,12 +440,12 @@ library JsonParser {
         uint256 temp = i;
         uint256 digits;
         while (temp != 0) {
-            ++digits;
+            digits++;
             temp /= 10;
         }
         bytes memory buffer = new bytes(digits);
         while (i != 0) {
-            --digits;
+            digits--;
             buffer[digits] = bytes1(uint8(48 + uint256(i % 10)));
             i /= 10;
         }
@@ -462,7 +468,7 @@ library JsonParser {
         bytes memory b = bytes(_b);
         uint256 minLength = a.length < b.length ? a.length : b.length;
 
-        for (uint256 i = 0; i < minLength; ++i) {
+        for (uint256 i = 0; i < minLength; i++) {
             if (a[i] < b[i]) return -1;
             if (a[i] > b[i]) return 1;
         }
