@@ -21,7 +21,7 @@ library Strings {
         if (a.length != b.length) return false;
         uint256 length = a.length;
         // Compare each byte
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < length; i++) {
             if (a[i] != b[i]) return false;
         }
         return true;
@@ -48,9 +48,9 @@ library Strings {
 
         uint256 length = str.length - substr.length;
         uint256 subStrLength = substr.length;
-        for (uint256 i = 0; i <= length; ++i) {
+        for (uint256 i = 0; i <= length; i++) {
             bool same = true;
-            for (uint256 j = 0; j < subStrLength; ++j) {
+            for (uint256 j = 0; j < subStrLength; j++) {
                 if (str[i + j] != substr[j]) {
                     same = false;
                     break;
@@ -74,7 +74,7 @@ library Strings {
         if (substr.length > str.length) return false;
 
         uint256 subStrLength = substr.length;
-        for (uint256 i = 0; i < subStrLength; ++i) {
+        for (uint256 i = 0; i < subStrLength; i++) {
             if (str[i] != substr[i]) return false;
         }
         return true;
@@ -94,7 +94,7 @@ library Strings {
 
         uint256 offset = str.length - substr.length;
         uint256 subStrLength = substr.length;
-        for (uint256 i = 0; i < subStrLength; ++i) {
+        for (uint256 i = 0; i < subStrLength; i++) {
             if (str[offset + i] != substr[i]) return false;
         }
         return true;
@@ -111,9 +111,9 @@ library Strings {
 
         uint256 length = str.length - substr.length;
         uint256 subStrLength = substr.length;
-        for (uint256 i = 0; i <= length; ++i) {
+        for (uint256 i = 0; i <= length; i++) {
             bool same = true;
-            for (uint256 j = 0; j < subStrLength; ++j) {
+            for (uint256 j = 0; j < subStrLength; j++) {
                 if (str[i + j] != substr[j]) {
                     same = false;
                     break;
@@ -130,7 +130,7 @@ library Strings {
     function toUpperCase(string memory _str) internal pure returns (string memory) {
         bytes memory strBytes = bytes(_str);
         uint256 length = strBytes.length;
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < length; i++) {
             // Check if character is a lowercase letter (a-z)
             if (strBytes[i] >= 0x61 && strBytes[i] <= 0x7A) {
                 // Convert to uppercase by subtracting 32
@@ -147,7 +147,7 @@ library Strings {
         bytes memory bStr = bytes(_str);
         bytes memory bLower = new bytes(bStr.length);
         uint256 length = bStr.length;
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < length; i++) {
             // Check if the byte is an uppercase letter
             if (bStr[i] >= 0x41 && bStr[i] <= 0x5A) {
                 bLower[i] = bytes1(uint8(bStr[i]) + 32); // Convert to lowercase
@@ -172,10 +172,10 @@ library Strings {
 
         uint256 k = 0;
         uint256 length = padCount * padBytes.length;
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < length; i++) {
             result[k++] = padBytes[i % padBytes.length];
         }
-        for (uint256 i = 0; i < strLen; ++i) {
+        for (uint256 i = 0; i < strLen; i++) {
             result[k++] = strBytes[i];
         }
         return string(result);
@@ -270,11 +270,11 @@ library Strings {
         uint256 start = 0;
         uint256 end = strBytesLength - 1;
 
-        while (start < strBytesLength && strBytes[start] == 0x20) ++start;
-        while (end > start && strBytes[end] == 0x20) --end;
+        while (start < strBytesLength && strBytes[start] == 0x20) start++;
+        while (end > start && strBytes[end] == 0x20) end--;
 
         bytes memory result = new bytes(end - start + 1);
-        for (uint256 i = start; i <= end; ++i) {
+        for (uint256 i = start; i <= end; i++) {
             result[i - start] = strBytes[i];
         }
         return string(result);
@@ -310,7 +310,7 @@ library Strings {
             result = concatenateBytes(result, sliceBytes(strBytes, position, matchIndex - position), newBytes);
 
             position = matchIndex + oldBytes.length;
-            ++matches;
+            matches++;
         }
         // im gonna leave strBytes.length here cause im not sure if mutated.
         result = concatenateBytes(result, sliceBytes(strBytes, position, strBytes.length - position), "");
@@ -321,9 +321,9 @@ library Strings {
     function findSubstring(bytes memory str, bytes memory sub, uint256 from) private pure returns (uint256) {
         uint256 subLength = sub.length;
         uint256 length = str.length - subLength;
-        for (uint256 i = from; i <= length; ++i) {
+        for (uint256 i = from; i <= length; i++) {
             bool matchFound = true;
-            for (uint256 j = 0; j < subLength; ++j) {
+            for (uint256 j = 0; j < subLength; j++) {
                 if (str[i + j] != sub[j]) {
                     matchFound = false;
                     break;
@@ -343,9 +343,10 @@ library Strings {
         bytes memory combined = new bytes(aLength + bLength + cLength);
         uint256 k = 0;
 
-        for (uint256 i = 0; i < aLength; ++i) combined[k++] = a[i];
-        for (uint256 i = 0; i < bLength; ++i) combined[k++] = b[i];
-        for (uint256 i = 0; i < cLength; ++i) combined[k++] = c[i];
+        for (uint256 i = 0; i < aLength; i++) combined[k++] = a[i];
+        for (uint256 i = 0; i < bLength; i++) combined[k++] = b[i];
+        for (uint256 i = 0; i < cLength; i++) combined[k++] = c[i];
+
 
         return combined;
     }
@@ -353,7 +354,7 @@ library Strings {
     // Helper function to slice bytes array
     function sliceBytes(bytes memory data, uint256 start, uint256 length) private pure returns (bytes memory) {
         bytes memory result = new bytes(length);
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint256 i = 0; i < length; i++) {
             result[i] = data[start + i];
         }
         return result;
@@ -374,7 +375,7 @@ library Strings {
         }
 
         uint256[] memory positions = new uint256[](posCount);
-        for (uint256 i = 0; i < posCount; ++i) {
+        for (uint256 i = 0; i < posCount; i++) {
             positions[i] = tempPositions[i];
         }
         return positions;
@@ -391,7 +392,7 @@ library Strings {
         string[] memory parts = new string[](partCount);
         uint256 start = 0;
 
-        for (uint256 i = 0; i < positionsLength; ++i) {
+        for (uint256 i = 0; i < positionsLength; i++) {
             parts[i] = string(sliceBytes(str, start, positions[i] - start));
             start = positions[i] + delimLength;
         }
