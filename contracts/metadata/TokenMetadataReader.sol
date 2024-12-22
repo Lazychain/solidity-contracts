@@ -6,6 +6,8 @@ import { Strings } from "../utils/Strings.sol";
 import { ITokenMetadata } from "../interfaces/metadata/ITokenMetadata.sol";
 
 library TokenMetadataReader {
+    error TokenMetadataReader__TraitNotFound(string);
+
     function exists(address _tokenAddress, uint256 _tokenId) internal view returns (bool) {
         return ITokenMetadata(_tokenAddress).exists(_tokenId);
     }
@@ -55,12 +57,26 @@ library TokenMetadataReader {
         return JsonUtil.getBool(metadata, _path);
     }
 
+    /// @dev Get attribute value for a specific trait_type
     function getTokenAttribute(
         address _tokenAddress,
         uint256 _tokenId,
         string memory _traitType
     ) internal view returns (string memory) {
-        return getTokenMetadata(_tokenAddress, _tokenId, _tavp(_traitType));
+        string memory metadata = getTokenMetadata(_tokenAddress, _tokenId);
+
+        // Iterate through attributes array to find matching trait_type
+        for (uint256 i = 0; i < 10; i++) {
+            if (!JsonUtil.exists(metadata, _tap(i))) {
+                break; // End of attributes array
+            }
+
+            string memory trait = JsonUtil.get(metadata, _tap(i));
+            if (stringsEqual(trait, _traitType)) {
+                return JsonUtil.get(metadata, _tavp(i));
+            }
+        }
+        revert TokenMetadataReader__TraitNotFound(_traitType);
     }
 
     function getTokenAttributeInt(
@@ -68,7 +84,26 @@ library TokenMetadataReader {
         uint256 _tokenId,
         string memory _traitType
     ) internal view returns (int256) {
-        return getTokenMetadataInt(_tokenAddress, _tokenId, _tavp(_traitType));
+        string memory metadata = getTokenMetadata(_tokenAddress, _tokenId);
+
+        for (uint256 i = 0; i < 10; i++) {
+            // First check if the trait_type exists at this index
+            string memory path = _tap(i);
+            if (!JsonUtil.exists(metadata, path)) {
+                break;
+            }
+
+            // Get the trait_type value
+            string memory traitType = JsonUtil.get(metadata, path);
+
+            // Compare trait types using the helper function
+            if (stringsEqual(traitType, _traitType)) {
+                // Get the value path for this index
+                string memory valuePath = _tavp(i);
+                return JsonUtil.getInt(metadata, valuePath);
+            }
+        }
+        revert TokenMetadataReader__TraitNotFound(_traitType);
     }
 
     function getTokenAttributeUint(
@@ -76,7 +111,19 @@ library TokenMetadataReader {
         uint256 _tokenId,
         string memory _traitType
     ) internal view returns (uint256) {
-        return getTokenMetadataUint(_tokenAddress, _tokenId, _tavp(_traitType));
+        string memory metadata = getTokenMetadata(_tokenAddress, _tokenId);
+
+        for (uint256 i = 0; i < 10; i++) {
+            if (!JsonUtil.exists(metadata, _tap(i))) {
+                break;
+            }
+
+            string memory trait = JsonUtil.get(metadata, _tap(i));
+            if (stringsEqual(trait, _traitType)) {
+                return JsonUtil.getUint(metadata, _tavp(i));
+            }
+        }
+        revert TokenMetadataReader__TraitNotFound(_traitType);
     }
 
     function getTokenAttributeBool(
@@ -84,23 +131,78 @@ library TokenMetadataReader {
         uint256 _tokenId,
         string memory _traitType
     ) internal view returns (bool) {
-        return getTokenMetadataBool(_tokenAddress, _tokenId, _tavp(_traitType));
+        string memory metadata = getTokenMetadata(_tokenAddress, _tokenId);
+
+        for (uint256 i = 0; i < 10; i++) {
+            if (!JsonUtil.exists(metadata, _tap(i))) {
+                break;
+            }
+
+            string memory trait = JsonUtil.get(metadata, _tap(i));
+            if (stringsEqual(trait, _traitType)) {
+                return JsonUtil.getBool(metadata, _tavp(i));
+            }
+        }
+        revert TokenMetadataReader__TraitNotFound(_traitType);
     }
 
-    /// @dev Checks if the token with the given id has a specific attribute trait type.
+    /// @dev Main function remains simple
     function hasTokenAttribute(
         address _tokenAddress,
         uint256 _tokenId,
         string memory _traitType
     ) internal view returns (bool) {
-        return exists(_tokenAddress, _tokenId, _tap(_traitType));
+        string memory metadata = getTokenMetadata(_tokenAddress, _tokenId);
+
+        // Try indices 0 through 9 for attributes array
+        for (uint256 i = 0; i < 10; i++) {
+            string memory path = _tap(i);
+
+            if (!JsonUtil.exists(metadata, path)) {
+                break; // No more attributes to check
+            }
+
+            string memory traitType = JsonUtil.get(metadata, path);
+
+            if (stringsEqual(traitType, _traitType)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    function _tap(string memory _traitType) internal pure returns (string memory) {
-        return Strings.replace('attributes.#(trait_type==":trait_type:")', ":trait_type:", _traitType, 1);
+    /// @dev Constructs path to trait_type at given array index
+    function _tap(uint256 index) internal pure returns (string memory) {
+        return string(abi.encodePacked("attributes[", toString(index), "].trait_type"));
     }
 
-    function _tavp(string memory _traitType) internal pure returns (string memory) {
-        return Strings.replace('attributes.#(trait_type==":trait_type:").value', ":trait_type:", _traitType, 1);
+    /// @dev Constructs path to get value of an attribute at a specific index
+    function _tavp(uint256 index) internal pure returns (string memory) {
+        return string(abi.encodePacked("attributes[", toString(index), "].value"));
+    }
+
+    /// @dev Helper for number to string conversion
+    function toString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+
+    /// @dev Helper for string comparison
+    function stringsEqual(string memory a, string memory b) internal pure returns (bool) {
+        return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
     }
 }

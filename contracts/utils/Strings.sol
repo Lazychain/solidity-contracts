@@ -347,6 +347,7 @@ library Strings {
         for (uint256 i = 0; i < bLength; i++) combined[k++] = b[i];
         for (uint256 i = 0; i < cLength; i++) combined[k++] = c[i];
 
+
         return combined;
     }
 
