@@ -407,29 +407,54 @@ library JsonParser {
     /// @param _b Number of decimal places to consider
     /// @return Parsed integer value
     function parseInt(string memory _a, uint256 _b) public pure returns (int256) {
-        bytes memory bresult = bytes(_a);
-        int256 mint = 0;
-        bool decimals = false;
-        bool negative = false;
-        uint256 divisor = 1;
+      bytes memory bresult = bytes(_a);
+      if(bresult.length == 0) revert("Empty string");
 
-        uint256 bresultLength = bresult.length;
-        for (uint256 i = 0; i < bresultLength; i++) {
-            if (bresult[i] == bytes1(0x2d)) {
-                negative = true;
-            } else if (bresult[i] == bytes1(0x2e)) {
-                decimals = true;
-            } else if (uint8(bresult[i]) >= 48 && uint8(bresult[i]) <= 57) {
-                if (decimals && _b > 0) {
-                    divisor *= 10;
-                    mint = mint * 10 + int256(uint256(uint8(bresult[i]) - 48));
-                    _b--;
-                } else if (!decimals) {
-                    mint = mint * 10 + int256(uint256(uint8(bresult[i]) - 48));
-                }
-            }
-        }
-        return negative ? -mint / int256(divisor) : mint / int256(divisor);
+      int256 mint = 0;
+      bool decimals = false;
+      bool negative = false;
+      uint256 divisor = 1;
+      bool hasDigits = false;
+
+      uint256 bresultLength = bresult.length;
+      for (uint256 i = 0; i < bresultLength; ++i) {
+          bytes1 currentByte = bresult[i];
+        
+          // Handle negative sign only at start
+          if (i == 0 && currentByte == bytes1(0x2d)) {
+              negative = true;
+              continue;
+          }
+        
+          // Handle decimal point
+          if (currentByte == bytes1(0x2e)) {
+              if (decimals) revert("Multiple decimal points"); // Can't have multiple decimal points
+              decimals = true;
+              continue;
+          }
+        
+          // Handle digits
+          if (uint8(currentByte) >= 48 && uint8(currentByte) <= 57) {
+              hasDigits = true;
+              if (decimals && _b > 0) {
+                  if (mint > type(int256).max / 10) revert("Number too large");
+                  divisor *= 10;
+                  mint = mint * 10 + int256(uint256(uint8(currentByte) - 48));
+                  --_b;
+              } else if (!decimals) {
+                  if (mint > type(int256).max / 10) revert("Number too large");
+                  mint = mint * 10 + int256(uint256(uint8(currentByte) - 48));
+              }
+          } else {
+              revert("Invalid character in number");
+          }
+      }
+
+      if (!hasDigits) revert("No digits found");
+      
+      if (negative && mint == type(int256).min) revert("Number too small");
+    
+      return negative ? -mint / int256(divisor) : mint / int256(divisor);
     }
 
     /// @notice Converts an unsigned integer to a string.
