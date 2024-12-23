@@ -2,12 +2,17 @@
 pragma solidity ^0.8.24;
 
 import { ITokenMetadata, Attribute, StdTokenMetadata } from "../interfaces/metadata/ITokenMetadata.sol";
-import { JsonUtil } from "../utils/JsonUtil.sol";
+import { JsonParser } from "../utils/JsonParser.sol";
 import { JsonStore } from "../utils/JsonStore.sol";
+import { JsonUtil } from "../utils/JsonUtil.sol";
 import { Strings } from "../utils/Strings.sol";
 
 contract TokenMetadata is ITokenMetadata {
-    JsonStore.Store private _store;
+    using JsonStore for JsonStore.Store;
+    JsonStore.Store internal _store;
+
+    error TokenMetadata__InvalidType();
+    error TokenMetadata__TraitNotFound(string);
 
     /// @dev Indicates whether any token exist with a given id, or not.
     function exists(uint256 _tokenId) external view virtual returns (bool) {
@@ -67,22 +72,95 @@ contract TokenMetadata is ITokenMetadata {
 
     /// @dev Returns the attribute of the token with the given id and trait type as a string.
     function _getTokenAttribute(uint256 _tokenId, string memory _traitType) internal view returns (string memory) {
-        return _getTokenMetadata(_tokenId, _getTokenAttributeValuePath(_traitType));
+        string memory metadata = _getTokenMetadata(_tokenId);
+        (JsonParser.Token[] memory tokens, uint256 count) = JsonUtil.parseJson(metadata);
+
+        uint256 pos = 3; // Start at first object in attributes array
+        while (pos < count) {
+            if (tokens[pos].jsonType == JsonParser.JsonType.OBJECT) {
+                string memory trait = JsonParser.getBytes(metadata, tokens[pos + 2].start, tokens[pos + 2].end);
+                if (bytes(trait).length >= 2 && bytes(trait)[0] == '"') {
+                    trait = JsonParser.getBytes(metadata, tokens[pos + 2].start + 1, tokens[pos + 2].end - 1);
+                }
+
+                if (JsonParser.strCompare(trait, _traitType) == 0) {
+                    string memory value = JsonParser.getBytes(metadata, tokens[pos + 4].start, tokens[pos + 4].end);
+                    if (bytes(value).length >= 2 && bytes(value)[0] == '"') {
+                        return JsonParser.getBytes(metadata, tokens[pos + 4].start + 1, tokens[pos + 4].end - 1);
+                    }
+                    return value;
+                }
+                pos += 5;
+            } else {
+                pos++;
+            }
+        }
+        revert TokenMetadata__TraitNotFound(_traitType);
     }
 
     /// @dev Returns the attribute of the token with the given id and trait type as `int256`.
     function _getTokenAttributeInt(uint256 _tokenId, string memory _traitType) internal view returns (int256) {
-        return _getTokenMetadataInt(_tokenId, _getTokenAttributeValuePath(_traitType));
+        string memory metadata = _getTokenMetadata(_tokenId);
+        (JsonParser.Token[] memory tokens, uint256 count) = JsonUtil.parseJson(metadata);
+
+        uint256 pos = 3;
+        while (pos < count) {
+            if (tokens[pos].jsonType == JsonParser.JsonType.OBJECT) {
+                string memory trait = JsonParser.getBytes(metadata, tokens[pos + 2].start, tokens[pos + 2].end);
+                if (bytes(trait).length >= 2 && bytes(trait)[0] == '"') {
+                    trait = JsonParser.getBytes(metadata, tokens[pos + 2].start + 1, tokens[pos + 2].end - 1);
+                }
+
+                if (JsonParser.strCompare(trait, _traitType) == 0) {
+                    string memory value = JsonParser.getBytes(metadata, tokens[pos + 4].start, tokens[pos + 4].end);
+                    // Strip quotes if present
+                    if (bytes(value).length >= 2 && bytes(value)[0] == '"') {
+                        value = JsonParser.getBytes(metadata, tokens[pos + 4].start + 1, tokens[pos + 4].end - 1);
+                    }
+                    return JsonParser.parseInt(value);
+                }
+                pos += 5;
+            } else {
+                pos++;
+            }
+        }
+        revert TokenMetadata__TraitNotFound(_traitType);
     }
 
     /// @dev Returns the attribute of the token with the given id and trait type as `uint256`.
     function _getTokenAttributeUint(uint256 _tokenId, string memory _traitType) internal view returns (uint256) {
-        return _getTokenMetadataUint(_tokenId, _getTokenAttributeValuePath(_traitType));
+        int256 value = _getTokenAttributeInt(_tokenId, _traitType);
+        if (value < 0) revert TokenMetadata__InvalidType();
+        return uint256(value);
     }
 
     /// @dev Returns the attribute of the token with the given id and trait type as `bool`.
     function _getTokenAttributeBool(uint256 _tokenId, string memory _traitType) internal view returns (bool) {
-        return _getTokenMetadataBool(_tokenId, _getTokenAttributeValuePath(_traitType));
+        string memory metadata = _getTokenMetadata(_tokenId);
+        (JsonParser.Token[] memory tokens, uint256 count) = JsonUtil.parseJson(metadata);
+
+        uint256 pos = 3;
+        while (pos < count) {
+            if (tokens[pos].jsonType == JsonParser.JsonType.OBJECT) {
+                string memory trait = JsonParser.getBytes(metadata, tokens[pos + 2].start, tokens[pos + 2].end);
+                if (bytes(trait).length >= 2 && bytes(trait)[0] == '"') {
+                    trait = JsonParser.getBytes(metadata, tokens[pos + 2].start + 1, tokens[pos + 2].end - 1);
+                }
+
+                if (JsonParser.strCompare(trait, _traitType) == 0) {
+                    string memory value = JsonParser.getBytes(metadata, tokens[pos + 4].start, tokens[pos + 4].end);
+                    // Strip quotes if present before parsing bool
+                    if (bytes(value).length >= 2 && bytes(value)[0] == '"') {
+                        value = JsonParser.getBytes(metadata, tokens[pos + 4].start + 1, tokens[pos + 4].end - 1);
+                    }
+                    return JsonParser.parseBool(value);
+                }
+                pos += 5;
+            } else {
+                pos++;
+            }
+        }
+        revert TokenMetadata__TraitNotFound(_traitType);
     }
 
     function _hasTokenAttribute(uint256 _tokenId, string memory _traitType) internal view returns (bool) {
