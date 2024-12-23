@@ -111,7 +111,7 @@ contract LotteryTest is Test, ERC1155Holder {
 
         //console.log(totalEmittion);
         // Construct NFT contract
-        _nft1155 = new Lazy1155(totalEmittion, "ipfs://hash/{id}.json", 0); // we want to test mint, so =0
+        _nft1155 = new Lazy1155(totalEmittion, "ipfs://hash/{id}.json"); // we want to test mint, so =0
         // Mint Tokens
         _nft1155.mintBatch(address(this), ids, amounts, "");
         assertEq(15, _nft1155.totalSupply());

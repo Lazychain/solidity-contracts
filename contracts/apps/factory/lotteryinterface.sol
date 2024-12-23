@@ -12,6 +12,8 @@ interface INFTHandler {
     function balanceOf(address user, uint256 tokenId) external view returns (uint256);
 
     function isApprovedForAll(address owner, address operator) external view returns (bool);
+
+    function tokenExists(uint256 _tokenId) external view returns (bool);
 }
 
 interface INFTLotteryFactory {

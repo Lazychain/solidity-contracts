@@ -8,9 +8,10 @@ import { NFTLotteryFactory } from "../../../contracts/apps/factory/lotteryFactor
 import { Lazy721 } from "../../../contracts/apps/lazy721.sol";
 import { Lazy1155 } from "../../../contracts/apps/lazy1155.sol";
 import { IFairyringContract } from "../../../contracts/apps/Ifairyring.sol";
+import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "hardhat/console.sol";
 
-contract LotteryFactoryTest is StdCheats, Test {
+contract LotteryFactoryTest is StdCheats, Test, ERC1155Holder {
     NFTLotteryFactory private _factory;
     NFTLottery private _lottery1155;
     NFTLottery private _lottery721;
@@ -40,7 +41,7 @@ contract LotteryFactoryTest is StdCheats, Test {
         _noFundedUser = makeAddr("no_funded_user");
 
         // tokenCap = 1
-        _nft1155 = new Lazy1155(amount, "ipfs://hash/{id}.json", tokenId); // we want to test mint, so =0
+        _nft1155 = new Lazy1155(amount, "ipfs://hash/{id}.json"); // we want to test mint, so =0
         _nft721 = new Lazy721("Lazy NFT", "LAZY", amount, "ipfs://lazyhash/");
 
         // Random mock
@@ -70,17 +71,18 @@ contract LotteryFactoryTest is StdCheats, Test {
         assertEq(_nft1155.balanceOf(address(_lottery1155), tokenId), _nft1155.totalSupply());
 
         emit log_string("1155 OK.");
-        _lottery721 = _factory.createLottery(
-            address(_nft721),
-            _fee,
-            address(_fairyringContract),
-            address(_fairyringContract)
-        );
+        // TODO: For now, Lottery only support ERC1155 since requeriments changed last week.
+        // _lottery721 = _factory.createLottery(
+        //     address(_nft721),
+        //     _fee,
+        //     address(_fairyringContract),
+        //     address(_fairyringContract)
+        // );
 
-        // LotteryFactoryTest owns _nft721
-        _nft721.safeMint(address(_lottery721));
-        assertEq(_nft721.balanceOf(address(_lottery721)), _nft721.totalSupply());
-        emit log_string("721 OK.");
+        // // LotteryFactoryTest owns _nft721
+        // _nft721.safeMint(address(_lottery721));
+        // assertEq(_nft721.balanceOf(address(_lottery721)), _nft721.totalSupply());
+        // emit log_string("721 OK.");
     }
 
     /// forge-config: default.fuzz.show-logs = true

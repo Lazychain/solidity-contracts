@@ -27,7 +27,7 @@ contract NFTLotteryFactory is INFTLotteryFactory {
         address fairyringContract,
         address decrypter
     ) external override returns (NFTLottery) {
-        console.log("createLottery");
+        // console.log("createLottery");
         bool isERC721 = _supportsInterface(nftContract, type(IERC721).interfaceId);
         bool isERC1155 = _supportsInterface(nftContract, type(IERC1155).interfaceId);
 
@@ -35,11 +35,11 @@ contract NFTLotteryFactory is INFTLotteryFactory {
         NFTStandards standard;
 
         if (isERC721) {
-            console.log("ERC721");
+            // console.log("ERC721");
             nftHandler = address(new ERC721Handler(nftContract));
             standard = NFTStandards.ERC721;
         } else if (isERC1155) {
-            console.log("ERC1155");
+            // console.log("ERC1155");
             // Example
 
             uint256[] memory ids = new uint256[](12);
@@ -75,7 +75,9 @@ contract NFTLotteryFactory is INFTLotteryFactory {
         address fairyringContract,
         address decrypter
     ) internal returns (NFTLottery) {
+        // console.log("_deployLottery called.");
         NFTLotteryProxy lotteryProxy = new NFTLotteryProxy(nftHandler, fee, fairyringContract, decrypter);
+        // console.log("_deployLottery finish.");
         return lotteryProxy.getLottery();
     }
 }
@@ -91,15 +93,16 @@ contract NFTLotteryProxy {
     NFTLottery private _lottery;
 
     constructor(address _nftHandler, uint256 _fee, address _fairyringContract, address _decrypter) {
+        // console.log("NFTLotteryProxy called.");
         nftHandler = _nftHandler;
 
         // Deploy implementation contract
         _lottery = new NFTLottery(_nftHandler, _fee, _fairyringContract, _decrypter);
         implementation = address(_lottery);
         fee = _fee;
-        th = _threshold;
         fairyring = _fairyringContract;
         decrypter = _decrypter;
+        // console.log("NFTLotteryProxy finish.");
     }
 
     function getLottery() external view returns (NFTLottery) {

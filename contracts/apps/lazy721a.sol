@@ -36,7 +36,7 @@ contract Lazy721A is ERC721A, Ownable {
      */
     function safeMint(address to, uint256 quantity) external onlyOwner {
         uint256 totalSuply = totalSupply();
-        console.log("TS[%s] Q[%s] C[%s]", totalSuply, quantity, _tokenCap);
+        // console.log("TS[%s] Q[%s] C[%s]", totalSuply, quantity, _tokenCap);
         if (quantity == 0) revert Lazy721A__QuantityMustBeGreaterThanCero();
         if (totalSuply + quantity > _tokenCap) revert Lazy721A__TokenCapExceeded();
         _mint(to, quantity);

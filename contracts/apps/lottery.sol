@@ -84,18 +84,23 @@ contract NFTLottery is Ownable, ERC1155Holder {
      * @param _erc1155 A list of NFTs Addresses
      */
     constructor(address _erc1155, uint256 _fee, address _fairyringContract, address _decrypter) Ownable(msg.sender) {
+        // console.log("lottery ctro called. [%s]",_erc1155);
         _nft = Lazy1155(_erc1155);
         _tokensIdCap = 0;
         for (uint256 i = 0; i < 255; i++) {
             // Scan from zero all tokensId assigned to owner
             if (_nft.tokenExists(i)) {
                 _tokensIdCap++;
+            }else {
+                break;
             }
         }
+
         decrypterContract = IDecrypter(_decrypter);
         fee = _fee;
         fairyringContract = IFairyringContract(_fairyringContract);
         emit LotteryInitialized(_decrypter, _fee);
+        // console.log("lottery ctro finish");
     }
 
     // EXECUTE:OWNER:Open or close campaign
@@ -194,13 +199,13 @@ contract NFTLottery is Ownable, ERC1155Holder {
             revert NFTLottery__TooFewPooPoints();
         }
 
-        console.log(" Points[%s]", user.pooPoints);
+        // console.log(" Points[%s]", user.pooPoints);
         // Check if there are NFTs remaining starting from low nfts types
         for (uint256 tokenId = _tokensIdCap - 1; tokenId > 0; tokenId--) {
             // i = 3,2,1,0
-            console.log("TokenId[%s]", tokenId);
+            // console.log("TokenId[%s]", tokenId);
             uint256 balance = _nft.balanceOf(address(this), tokenId);
-            console.log("TokenId[%s] max[%s]", tokenId, balance);
+            // console.log("TokenId[%s] max[%s]", tokenId, balance);
 
             // Check if there are NFTs remaining
             if (balance > 0) {

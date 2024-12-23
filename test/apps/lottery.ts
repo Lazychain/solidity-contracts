@@ -35,7 +35,7 @@ describe("Lottery", async function () {
 		mockFairyRingContract = await deployMockContract(owner, MockFairyJson.abi)
 
 		// Init NFT
-		const nftInitParams = [maxNftsupply, "ipfs://hash/{id}.json", 0]
+		const nftInitParams = [maxNftsupply, "ipfs://hash/{id}.json"]
 		const lazy1155 = (await ethers.deployContract("Lazy1155", nftInitParams, owner)) as Lazy1155
 		// Test TooFewNFTs
 		for (let tokenId = 0, quantity = 1 * factor; tokenId < nftTypes; tokenId++) {

@@ -11,9 +11,9 @@ import "hardhat/console.sol";
 
 import { Strings } from "../utils/Strings.sol";
 import { Integers } from "../utils/Integers.sol";
+import { ILazy1155 } from "../interfaces/token/ILazy1155.sol";
 
-contract Lazy1155 is ERC1155, Ownable, ERC1155Pausable, ERC1155Burnable, ERC1155Supply {
-    uint256 public constant INITIAL_ID = 0;
+contract Lazy1155 is ILazy1155, ERC1155, Ownable, ERC1155Pausable, ERC1155Burnable, ERC1155Supply {
     uint256 private _totalEmittion;
 
     error Lazy1155__TokenIdDoesntExist(); // TODO: Look for how to check Ids in batch
@@ -22,47 +22,45 @@ contract Lazy1155 is ERC1155, Ownable, ERC1155Pausable, ERC1155Burnable, ERC1155
     error Lazy1155__NoBalanceForTokenId();
 
     // Used as the URI for all token types by relying on ID substitution, e.g. https://token-cdn-domain/{id}.json
-    constructor(uint256 totalEmmition, string memory _uri, uint256 quantity) ERC1155(_uri) Ownable(msg.sender) {
+    constructor(uint256 totalEmmition, string memory _uri) ERC1155(_uri) Ownable(msg.sender) {
         _totalEmittion = totalEmmition;
-        // Creates amount tokens of token type id, and assigns them to account.
-        if (quantity > 0) {
-            mint(msg.sender, INITIAL_ID, quantity, ""); // Token ID 0, quantity 100
-        }
     }
 
-    function setURI(string memory newuri) public onlyOwner {
+    function setURI(string memory newuri) external onlyOwner {
         _setURI(newuri);
     }
 
-    function tokenURI(address from, uint256 tokenId) public view returns (string memory) {
-        if (!tokenExists(tokenId)) revert Lazy1155__TokenIdDoesntExist();
-        if (!isOwnerOfToken(from, tokenId)) revert Lazy1155__NoBalanceForTokenId();
+    function tokenURI(address from, uint256 tokenId) external view returns (string memory) {
+        // console.log("tokenURI called.");
+        if (!this.tokenExists(tokenId)) revert Lazy1155__TokenIdDoesntExist();
+        if (!this.isOwnerOfToken(from, tokenId)) revert Lazy1155__NoBalanceForTokenId();
 
         string memory uri = Strings.replace(super.uri(tokenId), "{id}", Integers.toString(tokenId), 1);
         //console.log("[%s]", uri);
         return uri;
     }
 
-    function isOwnerOfToken(address _owner, uint256 _tokenId) public view returns (bool) {
+    function isOwnerOfToken(address _owner, uint256 _tokenId) external view returns (bool) {
         uint256 balance = super.balanceOf(_owner, _tokenId);
         return balance > 0;
     }
 
-    function tokenExists(uint256 _tokenId) public view returns (bool) {
+    function tokenExists(uint256 _tokenId) external view returns (bool) {
         // Check the total supply of the token ID
+        // console.log("tokenExists called.");
         uint256 totalSupply = totalSupply(_tokenId);
         return totalSupply > 0;
     }
 
-    function pause() public onlyOwner {
+    function pause() external onlyOwner {
         _pause();
     }
 
-    function unpause() public onlyOwner {
+    function unpause() external onlyOwner {
         _unpause();
     }
 
-    function mint(address account, uint256 id, uint256 amount, bytes memory data) public onlyOwner {
+    function mint(address account, uint256 id, uint256 amount, bytes memory data) external onlyOwner {
         uint256 totalSuply = totalSupply();
         //console.log("[%s]", totalSuply);
         // TODO: overflow?
@@ -72,7 +70,7 @@ contract Lazy1155 is ERC1155, Ownable, ERC1155Pausable, ERC1155Burnable, ERC1155
         _mint(account, id, amount, data);
     }
 
-    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public onlyOwner {
+    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) external onlyOwner {
         uint256 totalSuply = totalSupply();
         //console.log("mintBatch [%s]", totalSuply);
         uint256 totalAmount = 0;
@@ -90,7 +88,6 @@ contract Lazy1155 is ERC1155, Ownable, ERC1155Pausable, ERC1155Burnable, ERC1155
     }
 
     // The following functions are overrides required by Solidity.
-
     function _update(
         address from,
         address to,
@@ -98,5 +95,16 @@ contract Lazy1155 is ERC1155, Ownable, ERC1155Pausable, ERC1155Burnable, ERC1155
         uint256[] memory values
     ) internal override(ERC1155, ERC1155Pausable, ERC1155Supply) {
         super._update(from, to, ids, values);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) public override(ILazy1155, ERC1155) {
+        super.safeTransferFrom(from,to,id,value,data);
+    }
+
+    function balanceOf(address account, uint256 id) public view override(ILazy1155, ERC1155) returns (uint256){
+        return super.balanceOf(account,id);
+    }
+    function isApprovedForAll(address owner, address operator) public view override(ILazy1155, ERC1155) returns (bool){
+        return super.isApprovedForAll(owner,operator);
     }
 }
