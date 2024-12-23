@@ -22,12 +22,12 @@ library Integers {
         uint256 temp = _value;
         uint256 digits;
         while (temp != 0) {
-            ++digits;
+            digits++;
             temp /= 10;
         }
         bytes memory buffer = new bytes(digits);
         while (_value != 0) {
-            --digits;
+            digits--;
             buffer[digits] = bytes1(uint8(48 + uint256(_value % 10)));
             _value /= 10;
         }
@@ -53,13 +53,13 @@ library Integers {
         uint256 temp = value;
         uint256 length = 0;
         while (temp != 0) {
-            ++length;
+            length++;
             temp >>= 4;
         }
         bytes memory buffer = new bytes(2 + length);
         buffer[0] = "0";
         buffer[1] = "x";
-        for (uint256 i = 2 + length - 1; i >= 2; --i) {
+        for (uint256 i = 2 + length - 1; i >= 2; i--) {
             buffer[i] = _toHexChar(uint8(value & 0x0f));
             value >>= 4;
         }
@@ -71,11 +71,11 @@ library Integers {
         bytes memory buffer = new bytes(2 + length);
         buffer[0] = "0";
         buffer[1] = "x";
-        for (uint256 i = 2 + length - 1; i >= 2; --i) {
+        for (uint256 i = 2 + length - 1; i >= 2; i--) {
             buffer[i] = _toHexChar(uint8(value & 0x0f));
             value >>= 4;
         }
-        for (uint256 i = 2; i < 2 + length; ++i) {
+        for (uint256 i = 2; i < 2 + length; i++) {
             if (buffer[i] == 0) {
                 buffer[i] = "0";
             }
@@ -99,7 +99,7 @@ library Integers {
 
         uint256 result = 0;
 
-        for (uint256 i = 2; i < strBytesLength; ++i) {
+        for (uint256 i = 2; i < strBytesLength; i++) {
             result = result * 16 + _fromHexChar(strBytes[i]);
         }
         return result;

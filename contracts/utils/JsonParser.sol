@@ -70,7 +70,7 @@ library JsonParser {
         }
         token = Token(JsonType.UNDEFINED, 0, 0, 0, false, false);
         tokens[parser.toknext] = token;
-        ++parser.toknext;
+        parser.toknext++;
         return (true, token);
     }
 
@@ -163,7 +163,7 @@ library JsonParser {
         uint256 start = parser.pos;
         bool found = false;
         uint256 sLength = s.length;
-        for (; parser.pos < sLength; ++parser.pos) {
+        for (; parser.pos < sLength; parser.pos++) {
             bytes1 c = s[parser.pos];
             if (isTerminatingChar(c)) {
                 found = true;
@@ -187,7 +187,7 @@ library JsonParser {
         }
 
         token = fillToken(newToken, JsonType.PRIMITIVE, start, parser.pos);
-        --parser.pos;
+        parser.pos--;
         return (RETURN_SUCCESS, token);
     }
 
@@ -209,7 +209,7 @@ library JsonParser {
         Parser memory parser;
         (parser, tokens) = init(numberElements);
         uint256 sLength = s.length;
-        for (; parser.pos < sLength; ++parser.pos) {
+        for (; parser.pos < sLength; parser.pos++) {
             bytes1 c = s[parser.pos];
 
             if (isWhitespace(c)) continue;
@@ -230,7 +230,7 @@ library JsonParser {
                     // Propagate the actual error code instead of always returning INVALID_JSON
                     return (stringResult, tokens, 0);
                 }
-                if (parser.toksuper != -1) ++tokens[uint256(parser.toksuper)].size;
+                if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
                 continue;
             }
 
@@ -247,7 +247,7 @@ library JsonParser {
             if (isPrimitiveStartChar(c)) {
                 (uint8 primResult, ) = parsePrimitive(parser, tokens, s);
                 if (primResult != RETURN_SUCCESS) return (RETURN_ERROR_INVALID_JSON, tokens, 0);
-                if (parser.toksuper != -1) ++tokens[uint256(parser.toksuper)].size;
+                if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
                 continue;
             }
 
@@ -276,7 +276,7 @@ library JsonParser {
         (bool success, Token memory token) = allocateToken(parser, tokens);
         if (!success) return false;
 
-        if (parser.toksuper != -1) ++tokens[uint256(parser.toksuper)].size;
+        if (parser.toksuper != -1) tokens[uint256(parser.toksuper)].size++;
 
         token.jsonType = (s[parser.pos] == bytes1(0x7b)) ? JsonType.OBJECT : JsonType.ARRAY;
         token.start = parser.pos;
@@ -294,7 +294,7 @@ library JsonParser {
     function processClosingBracket(Parser memory parser, Token[] memory tokens, bytes1 c) internal pure returns (bool) {
         JsonType tokenType = (c == bytes1(0x7d)) ? JsonType.OBJECT : JsonType.ARRAY;
 
-        for (uint256 i = parser.toknext - 1; i < parser.toknext; --i) {
+        for (uint256 i = parser.toknext - 1; i < parser.toknext; i--) {
             Token memory token = tokens[i];
             if (token.startSet && !token.endSet) {
                 if (token.jsonType != tokenType) return false;
@@ -313,7 +313,7 @@ library JsonParser {
     /// @param parser Current parser state
     /// @param tokens Array of tokens being built
     function processComma(Parser memory parser, Token[] memory tokens) internal pure {
-        for (uint256 i = parser.toknext - 1; i < parser.toknext; --i) {
+        for (uint256 i = parser.toknext - 1; i < parser.toknext; i--) {
             if (
                 (tokens[i].jsonType == JsonType.ARRAY || tokens[i].jsonType == JsonType.OBJECT) &&
                 tokens[i].startSet &&
@@ -389,7 +389,7 @@ library JsonParser {
 
         bytes memory s = bytes(json);
         bytes memory result = new bytes(end - start);
-        for (uint256 i = start; i < end; ++i) {
+        for (uint256 i = start; i < end; i++) {
             result[i - start] = s[i];
         }
         return string(result);
@@ -406,82 +406,56 @@ library JsonParser {
     /// @param _a String to parse
     /// @param _b Number of decimal places to consider
     /// @return Parsed integer value
-    // function parseInt(string memory _a, uint256 _b) public pure returns (int256) {
-    //     bytes memory bresult = bytes(_a);
-    //     int256 mint = 0;
-    //     bool decimals = false;
-    //     bool negative = false;
-    //     uint256 divisor = 1;
-
-    //     uint256 bresultLength = bresult.length;
-    //     for (uint256 i = 0; i < bresultLength; ++i) {
-    //         if (bresult[i] == bytes1(0x2d)) {
-    //             negative = true;
-    //         } else if (bresult[i] == bytes1(0x2e)) {
-    //             decimals = true;
-    //         } else if (uint8(bresult[i]) >= 48 && uint8(bresult[i]) <= 57) {
-    //             if (decimals && _b > 0) {
-    //                 divisor *= 10;
-    //                 mint = mint * 10 + int256(uint256(uint8(bresult[i]) - 48));
-    //                 --_b;
-    //             } else if (!decimals) {
-    //                 mint = mint * 10 + int256(uint256(uint8(bresult[i]) - 48));
-    //             }
-    //         }
-    //     }
-    //     return negative ? -mint / int256(divisor) : mint / int256(divisor);
-    // }
-
     function parseInt(string memory _a, uint256 _b) public pure returns (int256) {
-    bytes memory bresult = bytes(_a);
-    if(bresult.length == 0) revert("Empty string");
+      bytes memory bresult = bytes(_a);
+      if(bresult.length == 0) revert("Empty string");
 
-    int256 mint = 0;
-    bool decimals = false;
-    bool negative = false;
-    uint256 divisor = 1;
-    bool hasDigits = false;
+      int256 mint = 0;
+      bool decimals = false;
+      bool negative = false;
+      uint256 divisor = 1;
+      bool hasDigits = false;
 
-    uint256 bresultLength = bresult.length;
-    for (uint256 i = 0; i < bresultLength; ++i) {
-        bytes1 currentByte = bresult[i];
+      uint256 bresultLength = bresult.length;
+      for (uint256 i = 0; i < bresultLength; ++i) {
+          bytes1 currentByte = bresult[i];
         
-        // Handle negative sign only at start
-        if (i == 0 && currentByte == bytes1(0x2d)) {
-            negative = true;
-            continue;
-        }
+          // Handle negative sign only at start
+          if (i == 0 && currentByte == bytes1(0x2d)) {
+              negative = true;
+              continue;
+          }
         
-        // Handle decimal point
-        if (currentByte == bytes1(0x2e)) {
-            if (decimals) revert("Multiple decimal points"); // Can't have multiple decimal points
-            decimals = true;
-            continue;
-        }
+          // Handle decimal point
+          if (currentByte == bytes1(0x2e)) {
+              if (decimals) revert("Multiple decimal points"); // Can't have multiple decimal points
+              decimals = true;
+              continue;
+          }
         
-        // Handle digits
-        if (uint8(currentByte) >= 48 && uint8(currentByte) <= 57) {
-            hasDigits = true;
-            if (decimals && _b > 0) {
-                if (mint > type(int256).max / 10) revert("Number too large");
-                divisor *= 10;
-                mint = mint * 10 + int256(uint256(uint8(currentByte) - 48));
-                --_b;
-            } else if (!decimals) {
-                if (mint > type(int256).max / 10) revert("Number too large");
-                mint = mint * 10 + int256(uint256(uint8(currentByte) - 48));
-            }
-        } else {
-            revert("Invalid character in number");
-        }
+          // Handle digits
+          if (uint8(currentByte) >= 48 && uint8(currentByte) <= 57) {
+              hasDigits = true;
+              if (decimals && _b > 0) {
+                  if (mint > type(int256).max / 10) revert("Number too large");
+                  divisor *= 10;
+                  mint = mint * 10 + int256(uint256(uint8(currentByte) - 48));
+                  --_b;
+              } else if (!decimals) {
+                  if (mint > type(int256).max / 10) revert("Number too large");
+                  mint = mint * 10 + int256(uint256(uint8(currentByte) - 48));
+              }
+          } else {
+              revert("Invalid character in number");
+          }
+      }
+
+      if (!hasDigits) revert("No digits found");
+      
+      if (negative && mint == type(int256).min) revert("Number too small");
+    
+      return negative ? -mint / int256(divisor) : mint / int256(divisor);
     }
-
-    if (!hasDigits) revert("No digits found");
-    
-    if (negative && mint == type(int256).min) revert("Number too small");
-    
-    return negative ? -mint / int256(divisor) : mint / int256(divisor);
-}
 
     /// @notice Converts an unsigned integer to a string.
     /// @param i Integer to convert
@@ -491,12 +465,12 @@ library JsonParser {
         uint256 temp = i;
         uint256 digits;
         while (temp != 0) {
-            ++digits;
+            digits++;
             temp /= 10;
         }
         bytes memory buffer = new bytes(digits);
         while (i != 0) {
-            --digits;
+            digits--;
             buffer[digits] = bytes1(uint8(48 + uint256(i % 10)));
             i /= 10;
         }
@@ -519,7 +493,7 @@ library JsonParser {
         bytes memory b = bytes(_b);
         uint256 minLength = a.length < b.length ? a.length : b.length;
 
-        for (uint256 i = 0; i < minLength; ++i) {
+        for (uint256 i = 0; i < minLength; i++) {
             if (a[i] < b[i]) return -1;
             if (a[i] > b[i]) return 1;
         }
