@@ -41,9 +41,18 @@ contract TokenMetadata is ITokenMetadata {
         return JsonStore.exists(_store, _getTokenMetadataKey(_tokenId));
     }
 
+    // function _exists(uint256 _tokenId, string memory _path) internal view virtual returns (bool) {
+    //     string memory metadata = _getTokenMetadata(_tokenId);
+    //     return JsonUtil.exists(metadata, _path);
+    // }
+
     function _exists(uint256 _tokenId, string memory _path) internal view virtual returns (bool) {
+        if (!_exists(_tokenId)) {
+            return false;
+        }
+
         string memory metadata = _getTokenMetadata(_tokenId);
-        return JsonUtil.exists(metadata, _path);
+        return JsonUtil.exists(metadata, _getTokenAttributePath(_path));
     }
 
     function _getTokenMetadata(uint256 _tokenId) internal view virtual returns (string memory) {
@@ -167,50 +176,54 @@ contract TokenMetadata is ITokenMetadata {
         return _exists(_tokenId, _getTokenAttributePath(_traitType));
     }
 
+    // function _getTokenAttributePath(string memory _traitType) internal pure returns (string memory) {
+    //     return Strings.replace('attributes.#(trait_type==":trait_type:")', ":trait_type:", _traitType, 1);
+    // }
+
+    // function _getTokenAttributeValuePath(string memory _traitType) internal pure returns (string memory) {
+    //     return Strings.replace('attributes.#(trait_type==":trait_type:").value', ":trait_type:", _traitType, 1);
+    // }
+
     function _getTokenAttributePath(string memory _traitType) internal pure returns (string memory) {
-        return Strings.replace('attributes.#(trait_type==":trait_type:")', ":trait_type:", _traitType, 1);
+        return string(abi.encodePacked('attributes.#(trait_type=="', _traitType, '")'));
     }
 
     function _getTokenAttributeValuePath(string memory _traitType) internal pure returns (string memory) {
-        return Strings.replace('attributes.#(trait_type==":trait_type:").value', ":trait_type:", _traitType, 1);
+        return string(abi.encodePacked('attributes.#(trait_type=="', _traitType, '").value'));
     }
 
     function _tokenMetadataToJson(StdTokenMetadata memory _data) internal pure returns (string memory) {
-        string memory metadata = '{"attributes":[]}';
+        string memory metadata = "{";
+        metadata = string.concat(metadata, '"name":"', _data.name, '",');
+        metadata = string.concat(metadata, '"description":"', _data.description, '",');
+        metadata = string.concat(metadata, '"image":"', _data.image, '",');
+        metadata = string.concat(metadata, '"external_url":"', _data.externalURL, '",');
+        metadata = string.concat(metadata, '"animation_url":"', _data.animationURL, '",');
+        metadata = string.concat(metadata, '"attributes":[');
 
-        string[] memory paths = new string[](5);
-        paths[0] = "name";
-        paths[1] = "description";
-        paths[2] = "image";
-        paths[3] = "external_url";
-        paths[4] = "animation_url";
-        string[] memory values = new string[](5);
-        values[0] = _data.name;
-        values[1] = _data.description;
-        values[2] = _data.image;
-        values[3] = _data.externalURL;
-        values[4] = _data.animationURL;
-        metadata = JsonUtil.set(metadata, paths, values);
+        // Add attributes
         uint256 length = _data.attributes.length;
         for (uint8 i = 0; i < length; ++i) {
-            metadata = JsonUtil.setRaw(metadata, "attributes.-1", _tokenAttributeToJson(_data.attributes[i]));
+            metadata = string.concat(metadata, _tokenAttributeToJson(_data.attributes[i]));
+            if (i < length - 1) {
+                metadata = string.concat(metadata, ",");
+            }
         }
 
+        metadata = string.concat(metadata, "]}");
         return metadata;
     }
 
     function _tokenAttributeToJson(Attribute memory _attribute) internal pure returns (string memory) {
-        string memory attribute = "{}";
-        string[] memory paths = new string[](2);
-        paths[0] = "trait_type";
-        paths[1] = "value";
-        string[] memory values = new string[](2);
-        values[0] = _attribute.traitType;
-        values[1] = _attribute.value;
-        attribute = JsonUtil.set(attribute, paths, values);
+        string memory attribute = "{";
+        attribute = string.concat(attribute, '"trait_type":"', _attribute.traitType, '",');
+        attribute = string.concat(attribute, '"value":"', _attribute.value, '"');
+
         if (bytes(_attribute.displayType).length > 0) {
-            attribute = JsonUtil.set(attribute, "display_type", _attribute.displayType);
+            attribute = string.concat(attribute, ',"display_type":"', _attribute.displayType, '"');
         }
+
+        attribute = string.concat(attribute, "}");
         return attribute;
     }
 
