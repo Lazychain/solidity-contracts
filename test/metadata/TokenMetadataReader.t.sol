@@ -7,7 +7,6 @@ import { ITokenMetadata } from "../../contracts/interfaces/metadata/ITokenMetada
 import { JsonUtil } from "../../contracts/utils/JsonUtil.sol";
 import { JsonParser } from "../../contracts/utils/JsonParser.sol";
 
-
 contract MockTokenMetadata is ITokenMetadata {
     mapping(uint256 => string) private tokenMetadata;
     mapping(uint256 => bool) private tokenExists;
@@ -42,7 +41,7 @@ contract TokenMetadataReaderTest is Test {
 
     string constant BASIC_METADATA = '{"name":"Test Token","description":"A test token"}';
     string constant COMPLEX_METADATA =
-    '{"name":"Test Token","description":"A test token","attributes":[{"trait_type":"Color","value":"Blue"},{"trait_type":"Size","value":10},{"trait_type":"Active","value":true},{"trait_type":"Score","value":-5}]}';
+        '{"name":"Test Token","description":"A test token","attributes":[{"trait_type":"Color","value":"Blue"},{"trait_type":"Size","value":10},{"trait_type":"Active","value":true},{"trait_type":"Score","value":-5}]}';
 
     function setUp() public {
         mockToken = new MockTokenMetadata();
@@ -89,8 +88,18 @@ contract TokenMetadataReaderTest is Test {
     }
 
     function testGetTokenAttribute() public view {
+        // String
         string memory colorValue = TokenMetadataReader.getTokenAttribute(address(mockTokenComplex), TOKEN_ID, "Color");
         assertEq(colorValue, "Blue");
+        // Uint
+        uint256 sizeValue = TokenMetadataReader.getTokenAttributeUint(address(mockTokenComplex), TOKEN_ID, "Size");
+        assertEq(sizeValue, 10);
+        // Int
+        int256 scoreValue = TokenMetadataReader.getTokenAttributeInt(address(mockTokenComplex), TOKEN_ID, "Score");
+        assertEq(scoreValue, -5);
+        // Bool
+        bool activeValue = TokenMetadataReader.getTokenAttributeBool(address(mockTokenComplex), TOKEN_ID, "Active");
+        assertTrue(activeValue);
     }
 
     function testFailGetNonExistentAttribute() public {
@@ -106,7 +115,7 @@ contract TokenMetadataReaderTest is Test {
             address(mockTokenComplex),
             TOKEN_ID,
             "description"
-        );   
+        );
 
         assertEq(description, "A test token");
     }
@@ -116,67 +125,26 @@ contract TokenMetadataReaderTest is Test {
         assertTrue(TokenMetadataReader.exists(address(mockTokenComplex), TOKEN_ID, "attributes"));
         assertFalse(TokenMetadataReader.exists(address(mockTokenComplex), TOKEN_ID, "non_existent"));
     }
-    
-    function debugTokens(
-        string memory jsonBlob
-    ) internal pure returns (string[] memory values, JsonParser.JsonType[] memory types) {
-        (JsonParser.Token[] memory tokens, uint256 count) = JsonUtil.parseJson(jsonBlob);
-        
-        values = new string[](count);
-        types = new JsonParser.JsonType[](count);
-        
-        for (uint256 i = 0; i < count; i++) {
-            if (tokens[i].startSet) {
-                values[i] = JsonParser.getBytes(jsonBlob, tokens[i].start, tokens[i].end);
-                types[i] = tokens[i].jsonType;
-                console.log(
-                    "Token", 
-                    ":",
-                    values[i]
-                );
-            }
-        }
-        return (values, types);
-    }
-
-    function testGetTokenAttributeInt() public view {
-        int256 scoreValue = TokenMetadataReader.getTokenAttributeInt(address(mockTokenComplex), TOKEN_ID, "Score");
-        assertEq(scoreValue, -5);
-    }
-
-    function testGetTokenAttributeUint() public view {
-        uint256 sizeValue = TokenMetadataReader.getTokenAttributeUint(address(mockTokenComplex), TOKEN_ID, "Size");
-        assertEq(sizeValue, 10);
-    }
-
-    function testGetTokenAttributeBool() public view {
-        bool activeValue = TokenMetadataReader.getTokenAttributeBool(address(mockTokenComplex), TOKEN_ID, "Active");
-        assertTrue(activeValue);
-    }
 
     function testHasTokenAttribute() public view {
         assertTrue(TokenMetadataReader.hasTokenAttribute(address(mockTokenComplex), TOKEN_ID, "Color"));
         assertTrue(TokenMetadataReader.hasTokenAttribute(address(mockTokenComplex), TOKEN_ID, "Score"));
+        assertTrue(TokenMetadataReader.hasTokenAttribute(address(mockTokenComplex), TOKEN_ID, "Active"));
+        assertTrue(TokenMetadataReader.hasTokenAttribute(address(mockTokenComplex), TOKEN_ID, "Size"));
         assertFalse(TokenMetadataReader.hasTokenAttribute(address(mockTokenComplex), TOKEN_ID, "NonExistent"));
     }
 
     function testFuzzGetTokenMetadata(string calldata name, string calldata description) public {
         vm.assume(bytes(name).length > 0 && bytes(name).length < 100);
         vm.assume(bytes(description).length > 0 && bytes(description).length < 100);
-        
+
         // Sanitize the input strings
         string memory sanitizedName = sanitizeString(name);
         string memory sanitizedDesc = sanitizeString(description);
-        
+
         // Create valid JSON string
         string memory validJson = string(
-            abi.encodePacked(
-                '{"name":"',
-                sanitizedName,
-                '","description":"',
-                sanitizedDesc,
-                '"}'
-            )
+            abi.encodePacked('{"name":"', sanitizedName, '","description":"', sanitizedDesc, '"}')
         );
 
         mockToken.setTokenMetadata(TOKEN_ID, validJson);
@@ -188,14 +156,15 @@ contract TokenMetadataReaderTest is Test {
         bytes memory inputBytes = bytes(input);
         bytes memory output = new bytes(inputBytes.length * 2); // Worst case scenario each char needs escaping
         uint256 outputLength = 0;
-        
+
         for (uint256 i = 0; i < inputBytes.length; i++) {
             uint8 char = uint8(inputBytes[i]);
-            
+
             // Allow all printable ASCII and Unicode characters
-            if (char >= 32 && char <= 126 || (char >= 192 && char <= 255)) {
+            if ((char >= 32 && char <= 126) || (char >= 192 && char <= 255)) {
                 // Escape special JSON characters
-                if (char == 0x22 || char == 0x5C) { // 0x22 is ", 0x5C is \
+                if (char == 0x22 || char == 0x5C) {
+                    // 0x22 is ", 0x5C is \
                     output[outputLength++] = bytes1(0x5C); // add backslash
                     output[outputLength++] = bytes1(char);
                 } else {
@@ -206,13 +175,13 @@ contract TokenMetadataReaderTest is Test {
                 output[outputLength++] = bytes1(char);
             }
         }
-        
+
         // Create final string with correct length
         bytes memory finalOutput = new bytes(outputLength);
         for (uint256 i = 0; i < outputLength; i++) {
             finalOutput[i] = output[i];
         }
-        
+
         return string(finalOutput);
     }
 }
