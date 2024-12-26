@@ -28,3 +28,6 @@ types
 # bun && javascript dep
 bun.lockb
 package-lock.json
+
+# forge deploy scripts results
+/broadcast
