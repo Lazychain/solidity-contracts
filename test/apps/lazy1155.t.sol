@@ -21,7 +21,7 @@ contract Lazy1155Test is StdCheats, Test, ERC1155Holder {
     function setUp() public {
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
-        lnft = new Lazy1155(tokenCap, "ipfs://lazyhash/{id}.json", 0);
+        lnft = new Lazy1155(tokenCap, "ipfs://lazyhash/{id}.json");
     }
 
     function testInitializeState() public {
@@ -90,7 +90,7 @@ contract Lazy1155Test is StdCheats, Test, ERC1155Holder {
     /// forge-config: default.fuzz.runs = 10
     function testFuzz_Mint(uint16 quantity) public {
         vm.assume(quantity > 0);
-        Lazy1155 newNft = new Lazy1155(quantity, "ipfs/lazyhash/{id}.json", 0);
+        Lazy1155 newNft = new Lazy1155(quantity, "ipfs/lazyhash/{id}.json");
         assertEq(newNft.totalSupply(), 0);
         for (uint256 i = 0; i < quantity; ++i) {
             // LazyNFTTest is the owner
@@ -107,7 +107,7 @@ contract Lazy1155Test is StdCheats, Test, ERC1155Holder {
         vm.assume(newTokenCap < maxIds * 2);
 
         // Given a 1155 contract with zero initial minted tokens
-        Lazy1155 newNft = new Lazy1155(newTokenCap, "ipfs/lazyhash/{id}.json", 0);
+        Lazy1155 newNft = new Lazy1155(newTokenCap, "ipfs/lazyhash/{id}.json");
         assertEq(newNft.totalSupply(), 0);
 
         uint256 quantity = newTokenCap / maxIds;
