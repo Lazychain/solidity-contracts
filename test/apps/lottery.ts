@@ -47,7 +47,7 @@ describe("Lottery", async function () {
 		}
 
 		// Init NFTLottery
-		const lotteryInitParams = [lazy1155, fees, mockFairyRingContract.target, mockFairyRingContract.target]
+		const lotteryInitParams = [lazy1155, fees, mockFairyRingContract.target]
 		lotteryContract = (await ethers.deployContract("NFTLottery", lotteryInitParams, owner)) as NFTLottery
 
 		// Give permission to nftContract to Transfer Ownership

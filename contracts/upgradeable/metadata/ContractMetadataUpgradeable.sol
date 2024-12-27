@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 import { IContractMetadata } from "../../interfaces/metadata/IContractMetadata.sol";
 import { ContractMetadata } from "../../metadata/ContractMetadata.sol";

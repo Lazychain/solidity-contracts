@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 import { ERC721BaseUpgradeable } from "./ERC721BaseUpgradeable.sol";
 import { TokenMetadata } from "../../../metadata/TokenMetadata.sol";
