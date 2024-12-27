@@ -51,7 +51,7 @@ contract NFTLottery is Ownable, ERC1155Holder {
         uint256 pooPoints; // Points accumulated by the user
     }
 
-    mapping(address => UserNameSpace) public userDetails; //other details of users
+    mapping(address => UserNameSpace) private userDetails; //other details of users
 
     /// @notice Fee in TIA
     uint256 public fee = 0.01 ether;
@@ -60,7 +60,7 @@ contract NFTLottery is Ownable, ERC1155Holder {
     uint256 public totalDraws = 0;
 
     /// @notice This will help with generating random numbers
-    IFairyringContract public fairyringContract;
+    IFairyringContract private fairyringContract;
 
     /// @notice Collection
     Lazy1155 private _nft;
@@ -104,10 +104,14 @@ contract NFTLottery is Ownable, ERC1155Holder {
         emit CampaignStatusChanged(_isCampaignOpen);
     }
 
-    function withdraw() external onlyOwner {
+    function withdraw(address to) external onlyOwner {
         uint256 balance = address(this).balance;
-        emit RewardWithdrawn(msg.sender, balance);
+        emit RewardWithdrawn(to, balance);
         payable(msg.sender).transfer(balance);
+    }
+
+    function owner_balance() external view returns (uint256){
+        return address(this).balance;
     }
 
     // EXECUTE:ANYONE:draw(guess: number) -> Result(draw:boolean, error)
@@ -131,6 +135,7 @@ contract NFTLottery is Ownable, ERC1155Holder {
     function draw(
         uint256 userGuess
     ) external payable noContractCall noZeroAddress openCampaign fees returns (uint256 nftId) {
+        require(tx.origin == msg.sender, "Not EOA");
         bool isWinner = false; // default not win as start
         nftId = totalCollectionItems + 1; // Ensure that this nft id doesnt exist
         if (userGuess > 100) revert NFTLottery__GuessValueOutOfRange();

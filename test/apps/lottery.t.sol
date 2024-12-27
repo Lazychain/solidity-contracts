@@ -197,7 +197,7 @@ contract LotteryTest is Test, ERC1155Holder {
         vm.expectEmit(true, true, false, true);
         emit RewardWithdrawn(address(this), _fee);
 
-        _lottery.withdraw();
+        _lottery.withdraw(address(this));
         vm.stopPrank();
 
         // and owner balance should increase by amount
@@ -239,7 +239,7 @@ contract LotteryTest is Test, ERC1155Holder {
         vm.expectEmit(true, true, false, true);
         emit RewardWithdrawn(address(this), _fee);
 
-        _lottery.withdraw();
+        _lottery.withdraw(address(this));
         vm.stopPrank();
 
         // and owner balance should increase by amount
@@ -283,7 +283,7 @@ contract LotteryTest is Test, ERC1155Holder {
         vm.expectEmit(true, true, false, true);
         emit RewardWithdrawn(address(this), _fee);
 
-        _lottery.withdraw();
+        _lottery.withdraw(address(this));
         vm.stopPrank();
 
         // and owner balance should increase by amount
