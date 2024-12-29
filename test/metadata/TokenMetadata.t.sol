@@ -154,28 +154,27 @@ contract TokenMetadataTest is Test {
             attributes: attributes
         });
 
+        // Set metadata
+        tokenMetadata.exposed_setTokenMetadataWithStruct(TOKEN_ID, metadata);
 
-    // Set metadata
-    tokenMetadata.exposed_setTokenMetadataWithStruct(TOKEN_ID, metadata);
+        // Test exists
+        assertTrue(tokenMetadata.exposed_exists(TOKEN_ID));
 
-    // Test exists
-    assertTrue(tokenMetadata.exposed_exists(TOKEN_ID));
-    
-    // Test attribute existence using correct path
-    assertTrue(tokenMetadata.exposed_existsWithPath(TOKEN_ID, "attributes"));
-    
-    // Test attribute value
-    string memory value = tokenMetadata.exposed_getTokenAttribute(TOKEN_ID, "Type1");
-    assertEq(value, "Value1");
+        // Test attribute existence using correct path
+        assertTrue(tokenMetadata.exposed_existsWithPath(TOKEN_ID, "attributes"));
 
-        // assertTrue(tokenMetadata.exposed_existsWithPath(TOKEN_ID, "attributes[0].value")); // Changed path format
+        // Test attribute value
+        string memory value = tokenMetadata.exposed_getTokenAttribute(TOKEN_ID, "Type1");
+        assertEq(value, "Value1");
 
-        // // Test getters
-        // assertEq(tokenMetadata.exposed_getTokenAttribute(TOKEN_ID, "Type1"), "Value1");
+        assertTrue(tokenMetadata.exposed_existsWithPath(TOKEN_ID, "attributes[0].value")); // Changed path format
 
-        // // Test immutability
-        // vm.expectRevert(abi.encodeWithSelector(ITokenMetadata.TokenMetadataImmutable.selector, TOKEN_ID));
-        // tokenMetadata.exposed_setTokenMetadataWithStruct(TOKEN_ID, metadata);
+        // Test getters
+        assertEq(tokenMetadata.exposed_getTokenAttribute(TOKEN_ID, "Type1"), "Value1");
+
+        // Test immutability
+        vm.expectRevert(abi.encodeWithSelector(ITokenMetadata.TokenMetadataImmutable.selector, TOKEN_ID));
+        tokenMetadata.exposed_setTokenMetadataWithStruct(TOKEN_ID, metadata);
     }
 
     function testMultipleAttributes() public {
@@ -222,33 +221,29 @@ contract TokenMetadataTest is Test {
     }
 
     function testBasicMetadataFlow2() public {
-    // Create test metadata
-    Attribute[] memory attributes = new Attribute[](1);
-    attributes[0] = Attribute({
-        traitType: "Type1",
-        value: "Value1",
-        displayType: "string"
-    });
+        // Create test metadata
+        Attribute[] memory attributes = new Attribute[](1);
+        attributes[0] = Attribute({ traitType: "Type1", value: "Value1", displayType: "string" });
 
-    StdTokenMetadata memory metadata = StdTokenMetadata({
-        name: "Test Token",
-        description: "Test Description",
-        image: "https://test.com/image.png",
-        externalURL: "https://test.com",
-        animationURL: "https://test.com/animation.mp4",
-        attributes: attributes
-    });
+        StdTokenMetadata memory metadata = StdTokenMetadata({
+            name: "Test Token",
+            description: "Test Description",
+            image: "https://test.com/image.png",
+            externalURL: "https://test.com",
+            animationURL: "https://test.com/animation.mp4",
+            attributes: attributes
+        });
 
-    // Set metadata
-    tokenMetadata.exposed_setTokenMetadataWithStruct(TOKEN_ID, metadata);
+        // Set metadata
+        tokenMetadata.exposed_setTokenMetadataWithStruct(TOKEN_ID, metadata);
 
-    // Test exists
-    assertTrue(tokenMetadata.exposed_exists(TOKEN_ID));
-    
-    // Test simple path first
-    assertTrue(tokenMetadata.exposed_existsWithPath(TOKEN_ID, "attributes"));
-    
-    // Test attribute access
-    assertEq(tokenMetadata.exposed_getTokenAttribute(TOKEN_ID, "Type1"), "Value1");
-}
+        // Test exists
+        assertTrue(tokenMetadata.exposed_exists(TOKEN_ID));
+
+        // Test simple path first
+        assertTrue(tokenMetadata.exposed_existsWithPath(TOKEN_ID, "attributes"));
+
+        // Test attribute access
+        assertEq(tokenMetadata.exposed_getTokenAttribute(TOKEN_ID, "Type1"), "Value1");
+    }
 }
