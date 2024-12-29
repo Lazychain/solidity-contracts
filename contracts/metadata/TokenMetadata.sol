@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { ITokenMetadata, Attribute, StdTokenMetadata } from "../interfaces/metadata/ITokenMetadata.sol";
-import { JsonParser } from "../utils/JsonParser.sol";
-import { JsonStore } from "../utils/JsonStore.sol";
-import { JsonUtil } from "../utils/JsonUtil.sol";
 import { Strings } from "../utils/Strings.sol";
+import { JsonUtil } from "../utils/JsonUtil.sol";
+import { JsonStore } from "../utils/JsonStore.sol";
+import { JsonParser } from "../utils/JsonParser.sol";
+import { ITokenMetadata, Attribute, StdTokenMetadata } from "../interfaces/metadata/ITokenMetadata.sol";
 
 contract TokenMetadata is ITokenMetadata {
     using JsonStore for JsonStore.Store;
@@ -40,11 +40,6 @@ contract TokenMetadata is ITokenMetadata {
     function _exists(uint256 _tokenId) internal view virtual returns (bool) {
         return JsonStore.exists(_store, _getTokenMetadataKey(_tokenId));
     }
-
-    // function _exists(uint256 _tokenId, string memory _path) internal view virtual returns (bool) {
-    //     string memory metadata = _getTokenMetadata(_tokenId);
-    //     return JsonUtil.exists(metadata, _path);
-    // }
 
     function _exists(uint256 _tokenId, string memory _path) internal view virtual returns (bool) {
         if (!_exists(_tokenId)) {
@@ -176,14 +171,6 @@ contract TokenMetadata is ITokenMetadata {
         return _exists(_tokenId, _getTokenAttributePath(_traitType));
     }
 
-    // function _getTokenAttributePath(string memory _traitType) internal pure returns (string memory) {
-    //     return Strings.replace('attributes.#(trait_type==":trait_type:")', ":trait_type:", _traitType, 1);
-    // }
-
-    // function _getTokenAttributeValuePath(string memory _traitType) internal pure returns (string memory) {
-    //     return Strings.replace('attributes.#(trait_type==":trait_type:").value', ":trait_type:", _traitType, 1);
-    // }
-
     function _getTokenAttributePath(string memory _traitType) internal pure returns (string memory) {
         return string(abi.encodePacked('attributes.#(trait_type=="', _traitType, '")'));
     }
@@ -191,6 +178,7 @@ contract TokenMetadata is ITokenMetadata {
     function _getTokenAttributeValuePath(string memory _traitType) internal pure returns (string memory) {
         return string(abi.encodePacked('attributes.#(trait_type=="', _traitType, '").value'));
     }
+
     function _tokenMetadataToJson(StdTokenMetadata memory _data) internal pure returns (string memory) {
         // Create more compact JSON
         string memory metadata = "{";
@@ -209,7 +197,7 @@ contract TokenMetadata is ITokenMetadata {
         if (bytes(_data.animationURL).length > 0) {
             metadata = string.concat(metadata, '"animation_url":"', _data.animationURL, '",');
         }
-        
+
         metadata = string.concat(metadata, '"attributes":[');
 
         uint256 length = _data.attributes.length;
