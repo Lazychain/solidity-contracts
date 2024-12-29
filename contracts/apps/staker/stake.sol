@@ -37,6 +37,12 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     //////////////
     // FUNCTION //
     //////////////
+
+    /**
+     * @dev Stakes an ERC721 token
+     * @param tokenAddress The address of the ERC721 contract
+     * @param tokenId The ID of the token to stake
+     */
     function stakeERC721(address tokenAddress, uint256 tokenId) external nonReentrant {
         if (tokenAddress == address(0)) {
             revert NFTStaking__WrongDataFilled();
@@ -64,6 +70,12 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         emit Staked(msg.sender, tokenAddress, tokenId, 1);
     }
 
+    /**
+     * @dev Stakes ERC1155 tokens
+     * @param tokenAddress The address of the ERC1155 contract
+     * @param tokenId The ID of the tokens to stake
+     * @param amount The amount of tokens to stake
+     */
     function stakeERC1155(address tokenAddress, uint256 tokenId, uint256 amount) external nonReentrant {
         if (tokenAddress == address(0)) {
             revert NFTStaking__WrongDataFilled();
@@ -90,6 +102,10 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         emit Staked(msg.sender, tokenAddress, tokenId, amount);
     }
 
+    /**
+     * @dev Withdraws staked tokens
+     * @param index The index of the stake in the user's stakes array
+     */
     function unStake(uint256 index) external {
         if (stakes[msg.sender].length <= index) {
             revert NFTStaking__WrongDataFilled();
@@ -110,12 +126,25 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         emit UnStaked(msg.sender, stake.tokenAddress, stake.tokenId, stake.amount);
     }
 
+    /**
+     * @dev Gets all stakes for a user
+     * @param staker The address of the staker
+     * @return StakeInfo[] Array of stake information
+     */
     function getStakes(address staker) external view returns (StakeInfo[] memory) {
         return stakes[staker];
     }
 
-    function getStakeDuration(address staker, uint256 stakeIndex) external view returns (uint256) {
-        require(stakeIndex < stakes[staker].length, "Invalid stake index");
-        return block.timestamp - stakes[staker][stakeIndex].timeStamp;
+    /**
+     * @dev Gets the stake duration for a specific stake
+     * @param staker The address of the staker
+     * @param index The index of the stake
+     * @return uint256 The duration of the stake in seconds
+     */
+    function getStakeDuration(address staker, uint256 index) external view returns (uint256) {
+        if (stakes[msg.sender].length <= index) {
+            revert NFTStaking__WrongDataFilled();
+        }
+        return block.timestamp - stakes[staker][index].timeStamp;
     }
 }
