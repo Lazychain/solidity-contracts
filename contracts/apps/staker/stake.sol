@@ -87,5 +87,32 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         emit Staked(msg.sender, tokenAddress, tokenId, amount);
     }
 
-    function unStake(uint256 index) external {}
+    function unStake(uint256 index) external {
+        if (stakes[msg.sender].length <= index) {
+            revert NFTStaking__WrongDataFilled();
+        }
+
+        StakeInfo memory stake = stakes[msg.sender][index];
+
+        if (stake.isERC1155) {
+            IERC1155(stake.tokenAddress).safeTransferFrom(address(this), msg.sender, stake.tokenId, stake.amount, "");
+        } else {
+            IERC721(stake.tokenAddress).safeTransferFrom(address(this), msg.sender, stake.tokenId, "");
+        }
+
+        // replace current index -> Last element >>> then pop it.
+        stakes[msg.sender][index] = stakes[msg.sender][stakes[msg.sender].length - 1];
+        stakes[msg.sender].pop();
+
+        emit UnStaked(msg.sender, stake.tokenAddress, stake.tokenId, stake.amount);
+    }
+
+    function getStakes(address staker) external view returns (StakeInfo[] memory) {
+        return stakes[staker];
+    }
+
+    function getStakeDuration(address staker, uint256 stakeIndex) external view returns (uint256) {
+        require(stakeIndex < stakes[staker].length, "Invalid stake index");
+        return block.timestamp - stakes[staker][stakeIndex].timeStamp;
+    }
 }
