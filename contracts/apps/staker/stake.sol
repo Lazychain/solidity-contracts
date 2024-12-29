@@ -16,6 +16,12 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     error NFTStaking__WrongDataFilled();
     error NFTStaking__InsufficientBalance();
 
+    ////////////
+    // EVENTS //
+    ////////////
+    event Staked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
+    event UnStaked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
+
     struct StakeInfo {
         address tokenAddress;
         uint256 tokenId;
@@ -26,14 +32,11 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
 
     mapping(address => StakeInfo[]) public stakes; // Staker Address => Stake Info
 
-    ////////////
-    // EVENTS //
-    ////////////
-    event Staked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
-    event UnStaked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
-
     constructor() Ownable(msg.sender) {}
 
+    //////////////
+    // FUNCTION //
+    //////////////
     function stakeERC721(address tokenAddress, uint256 tokenId) external nonReentrant {
         if (tokenAddress == address(0)) {
             revert NFTStaking__WrongDataFilled();
