@@ -52,7 +52,7 @@ contract TokenMetadata is ITokenMetadata {
         }
 
         string memory metadata = _getTokenMetadata(_tokenId);
-        return JsonUtil.exists(metadata, _getTokenAttributePath(_path));
+        return JsonUtil.exists(metadata, _path);
     }
 
     function _getTokenMetadata(uint256 _tokenId) internal view virtual returns (string memory) {
@@ -191,17 +191,27 @@ contract TokenMetadata is ITokenMetadata {
     function _getTokenAttributeValuePath(string memory _traitType) internal pure returns (string memory) {
         return string(abi.encodePacked('attributes.#(trait_type=="', _traitType, '").value'));
     }
-
     function _tokenMetadataToJson(StdTokenMetadata memory _data) internal pure returns (string memory) {
+        // Create more compact JSON
         string memory metadata = "{";
-        metadata = string.concat(metadata, '"name":"', _data.name, '",');
-        metadata = string.concat(metadata, '"description":"', _data.description, '",');
-        metadata = string.concat(metadata, '"image":"', _data.image, '",');
-        metadata = string.concat(metadata, '"external_url":"', _data.externalURL, '",');
-        metadata = string.concat(metadata, '"animation_url":"', _data.animationURL, '",');
+        if (bytes(_data.name).length > 0) {
+            metadata = string.concat(metadata, '"name":"', _data.name, '",');
+        }
+        if (bytes(_data.description).length > 0) {
+            metadata = string.concat(metadata, '"description":"', _data.description, '",');
+        }
+        if (bytes(_data.image).length > 0) {
+            metadata = string.concat(metadata, '"image":"', _data.image, '",');
+        }
+        if (bytes(_data.externalURL).length > 0) {
+            metadata = string.concat(metadata, '"external_url":"', _data.externalURL, '",');
+        }
+        if (bytes(_data.animationURL).length > 0) {
+            metadata = string.concat(metadata, '"animation_url":"', _data.animationURL, '",');
+        }
+        
         metadata = string.concat(metadata, '"attributes":[');
 
-        // Add attributes
         uint256 length = _data.attributes.length;
         for (uint8 i = 0; i < length; ++i) {
             metadata = string.concat(metadata, _tokenAttributeToJson(_data.attributes[i]));
