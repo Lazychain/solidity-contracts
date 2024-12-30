@@ -34,7 +34,9 @@ jobs:
           submodules: recursive
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: onbjerg/foundry-toolchain@v1
+        with:
+          version: nightly
 
       - name: Run tests
         run: forge test -vvv
