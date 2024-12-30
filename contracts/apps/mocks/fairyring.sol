@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
-import { IFairyringContract, IDecrypter } from "../Ifairyring.sol";
-import "hardhat/console.sol";
+pragma solidity ^0.8.25;
+import { IFairyringContract } from "../../../lib/FairyringContract/src/IFairyringContract.sol";
+// import "hardhat/console.sol";
 
 /**
  * @title MockFairyRing
  * @notice A mock implementation of the FairyRing randomness contract using commit-reveal scheme
  * @dev This contract simulates the FairyBlock randomness for testing purposes
  */
-contract MockFairyRing is IFairyringContract, IDecrypter {
+contract MockFairyRing is IFairyringContract {
     ////////////
     // ERRORS //
     ////////////
@@ -125,9 +125,9 @@ contract MockFairyRing is IFairyringContract, IDecrypter {
         return (latestRandom, uint256(latestRandom));
     }
 
-    function getRandomnessByHeight(uint256) external view returns (uint256) {
+    function getRandomnessByHeight(uint256) external view returns (bytes32) {
         // TOD: impl getting from heigth instead of latest
-        return latestHeight;
+        return bytes32(latestHeight);
     }
 
     /**
@@ -178,5 +178,13 @@ contract MockFairyRing is IFairyringContract, IDecrypter {
         }
         operator = newOwner;
         emit OwnershipTransferred(newOwner);
+    }
+
+    function latestEncryptionKey() external pure returns (bytes memory) {
+        return new bytes(0);
+    }
+
+    function encryptionKeyExists(bytes memory) external pure returns (bool) {
+        return false;
     }
 }

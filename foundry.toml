@@ -1,5 +1,5 @@
 [profile.default]
-solc_version = '0.8.24'
+solc_version = '0.8.25'
 src = "./contracts"
 test = 'test'
 script = 'script'
@@ -10,6 +10,7 @@ remappings = [
     'forge-std/=lib/forge-std/src/',
     '@openzeppelin/=node_modules/@openzeppelin/',
     'erc721a/=node_modules/erc721a/',
+    'FairyringContract/=lib/FairyringContract/src'
 ]
 # libraries = [
 #     "contracts/utils/JsonStore.sol:JsonStore:0x00000000000000000000000000000F043a000007",

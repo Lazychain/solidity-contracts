@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ERC721A } from "erc721a/contracts/ERC721A.sol";
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 contract Lazy721A is ERC721A, Ownable {
     uint16 private _tokenCap;
