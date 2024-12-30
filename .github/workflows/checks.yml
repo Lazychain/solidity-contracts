@@ -25,23 +25,6 @@ jobs:
         uses: ./.github/actions/setup
       - run: npm run lint
 
-  check:
-    name: Foundry project
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1.3.1
-
-      - name: Run tests
-        run: forge test -vvv
-
-      - name: Run snapshot
-        run: forge snapshot
-
   coverage:
     name: Run tests and collect coverage
     runs-on: ubuntu-latest
