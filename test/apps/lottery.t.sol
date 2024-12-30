@@ -43,7 +43,6 @@ contract LotteryTest is Test, ERC1155Holder {
     Lazy1155 private _nft1155;
 
     IFairyringContract private _fairyringContract;
-    IDecrypter private _decrypter;
     Handler private _handler;
     address private _fundedUser;
     address private _noFundedUser;
@@ -119,7 +118,6 @@ contract LotteryTest is Test, ERC1155Holder {
 
         // Random mock
         _fairyringContract = IFairyringContract(address(0));
-        _decrypter = IDecrypter(address(0));
 
         // the owner is LotteryTest
         // Construct Lottery
@@ -177,9 +175,6 @@ contract LotteryTest is Test, ERC1155Holder {
         emit CampaignStatusChanged(true);
         _lottery.setCampaign(true);
 
-        // and a user
-        vm.startPrank(address(_noFundedUser));
-
         // with enough fee ether to pay a draw()
         deal(address(_noFundedUser), _fee);
 
@@ -190,6 +185,9 @@ contract LotteryTest is Test, ERC1155Holder {
             abi.encodeWithSelector(IFairyringContract.latestRandomness.selector),
             abi.encode(bytes32(0), uint256(guess))
         );
+
+        // and a user
+        vm.startPrank(address(_noFundedUser));
         // and calling draw()
         _lottery.draw{ value: _fee }(guess);
         vm.stopPrank();

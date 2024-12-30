@@ -7,17 +7,21 @@
 - [mainnet](https://github.com/forma-dev/hyperlane-bridge-ui/blob/6e2726ac694d344e73daf41d6b3b7fd28e5313cf/src/consts/chains.ts#L11-L35)
 - [testnet](https://github.com/forma-dev/hyperlane-bridge-ui/blob/6e2726ac694d344e73daf41d6b3b7fd28e5313cf/src/consts/chains.ts#L150-L174)
 
+new wallet: `cast wallet new-mnemonic --words 24`
+
 1 - Set env
 
 ```bash
+cp .env.example .env
 source .env
-
-export PRIVATE_KEY="..."
+# Inside theres the `ANVIL_MNEMONIC`
 ```
 
 2- Import PK with cast
 
 ```bash
+# For testnet or mainnet
+export PRIVATE_KEY="..." 
 cast wallet import --private-key $PRIVATE_KEY deployer
 ```
 

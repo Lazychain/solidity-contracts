@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import { Script } from "forge-std/Script.sol";
 import { NFTLottery } from "../contracts/apps/lottery.sol";
 import { Lazy1155 } from "../contracts/apps/lazy1155.sol";
-import { IFairyringContract, IDecrypter } from "../contracts/apps/Ifairyring.sol";
+import { IFairyringContract } from "../lib/FairyringContract/src/IFairyringContract.sol";
 import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import { IERC165, ERC165 } from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "hardhat/console.sol";
@@ -51,15 +51,13 @@ contract Deploy is Script, ERC165, IERC1155Receiver {
         console.log("3- Setting Fairblock Contracts");
         // Random Fairblock contracts
         IFairyringContract _fairyringContract = IFairyringContract(address(_Fairblock_fairyring));
-        IDecrypter _decrypter = IDecrypter(address(_Fairblock_decrypter));
 
         console.log("4- Deploying and init LazyLottery");
         // Construct Lottery
         NFTLottery _lottery = new NFTLottery(
             address(_nft1155),
             _NFTLottery_fee,
-            address(_fairyringContract),
-            address(_decrypter)
+            address(_fairyringContract)
         );
 
         console.log("5- Transfering Lazy1155 ids  ownership to LazyLottery");
