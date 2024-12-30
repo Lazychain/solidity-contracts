@@ -14,8 +14,7 @@ contract Deploy is Script, ERC165, IERC1155Receiver {
         uint256 _Lazy1155_tokensIdCap, // 5
         string calldata _Lazy1155_uri, // "ipfs://hash/{id}.json"
         uint256 _NFTLottery_fee, // 0.01 ether
-        address _Fairblock_fairyring, // Address
-        address _Fairblock_decrypter // Address
+        address _Fairblock_fairyring // Address
     ) external {
         uint256 deployerPrivateKey = vm.envUint("ANVIL_PK");
         address deployer = vm.addr(deployerPrivateKey);
@@ -24,7 +23,7 @@ contract Deploy is Script, ERC165, IERC1155Receiver {
         console.log("---------------------");
         console.log("Deployer: [%s]", deployer);
         console.log("ERC1155: Token Types [%s] IPFS[%s]", _Lazy1155_tokensIdCap, _Lazy1155_uri);
-        console.log("Fairblock: Fairyring[%s] Decrypter[%s]", _Fairblock_fairyring, _Fairblock_decrypter);
+        console.log("Fairblock: Fairyring[%s]", _Fairblock_fairyring);
         console.log("Lottery: fees[%s]", _NFTLottery_fee);
         console.log("---------------------");
         vm.startBroadcast(deployerPrivateKey);
@@ -72,7 +71,7 @@ contract Deploy is Script, ERC165, IERC1155Receiver {
 
         console.log("---------------------");
         console.log("ERC1155: addr[%s] owner[%s]", address(_nft1155), _nft1155.owner());
-        console.log("Fairblock: Fairyring[%s] Decrypter[%s]", _Fairblock_fairyring, _Fairblock_decrypter);
+        console.log("Fairblock: Fairyring[%s]", _Fairblock_fairyring);
         console.log(
             "Lottery: addr[%s] NFTs[%s] owner[%s]",
             address(_lottery),

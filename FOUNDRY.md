@@ -29,7 +29,7 @@ cast wallet import --private-key $PRIVATE_KEY deployer
 
 ```bash
 anvil -m "$ANVIL_MNEMONIC"
-forge script script/lottery.s.sol:Deploy 5 "ipfs://hash/{id}.json" 10000000000000000 "0x1234567890123456789012345678901234567890" "0x1234567890123456789012345678901234567890"  --sig 'run(uint256,string,uint256,address,address)' --fork-url $ANVIL_CHAIN_RPC
+forge script script/lottery.s.sol:Deploy 5 "ipfs://hash/{id}.json" 10000000000000000 "0x1234567890123456789012345678901234567890"  --sig 'run(uint256,string,uint256,address)' --fork-url $ANVIL_CHAIN_RPC --broadcast
 ```
 
 4- Forma testnet
