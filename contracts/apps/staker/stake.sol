@@ -110,7 +110,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @dev Withdraws staked tokens
      * @param index The index of the stake in the user's stakes array
      */
-    function unStake(uint256 index) external {
+    function unStake(uint256 index) external nonReentrant {
         if (stakes[msg.sender].length <= index) {
             revert NFTStaking__WrongDataFilled("index");
         }
