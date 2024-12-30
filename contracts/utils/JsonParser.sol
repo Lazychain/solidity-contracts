@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 library JsonParser {
     // Use uint8 instead of uint256 for error codes to save gas

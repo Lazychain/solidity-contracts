@@ -9,7 +9,7 @@ import { StdAssertions } from "forge-std/StdAssertions.sol";
 // import { Lazy721 } from "../../contracts/apps/lazy721.sol";
 import { Lazy1155 } from "../../contracts/apps/lazy1155.sol";
 import { NFTLottery } from "../../contracts/apps/lottery.sol";
-import { IFairyringContract } from "../../contracts/apps/Ifairyring.sol";
+import { IFairyringContract } from "../../lib/FairyringContract/src/IFairyringContract.sol";
 import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import { console } from "forge-std/console.sol";
 
@@ -121,7 +121,7 @@ contract LotteryTest is Test, ERC1155Holder {
 
         // the owner is LotteryTest
         // Construct Lottery
-        _lottery = new NFTLottery(address(_nft1155), _fee, address(_fairyringContract), address(_fairyringContract));
+        _lottery = new NFTLottery(address(_nft1155), _fee, address(_fairyringContract));
 
         // Set approval for all NFTs to Loterry as `Operator`
         _nft1155.setApprovalForAll(address(_lottery), true);
@@ -197,7 +197,7 @@ contract LotteryTest is Test, ERC1155Holder {
         vm.expectEmit(true, true, false, true);
         emit RewardWithdrawn(address(this), _fee);
 
-        _lottery.withdraw();
+        _lottery.withdraw(address(this));
         vm.stopPrank();
 
         // and owner balance should increase by amount
@@ -239,7 +239,7 @@ contract LotteryTest is Test, ERC1155Holder {
         vm.expectEmit(true, true, false, true);
         emit RewardWithdrawn(address(this), _fee);
 
-        _lottery.withdraw();
+        _lottery.withdraw(address(this));
         vm.stopPrank();
 
         // and owner balance should increase by amount
@@ -283,7 +283,7 @@ contract LotteryTest is Test, ERC1155Holder {
         vm.expectEmit(true, true, false, true);
         emit RewardWithdrawn(address(this), _fee);
 
-        _lottery.withdraw();
+        _lottery.withdraw(address(this));
         vm.stopPrank();
 
         // and owner balance should increase by amount

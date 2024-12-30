@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 import { NFTLottery } from "../lottery.sol";
 import { ERC721Handler, ERC1155Handler } from "./lotteryTokens.sol";
@@ -7,7 +7,7 @@ import { INFTLotteryFactory } from "./lotteryinterface.sol";
 import { IERC165 } from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 contract NFTLotteryFactory is INFTLotteryFactory {
     enum NFTStandards {
@@ -24,8 +24,7 @@ contract NFTLotteryFactory is INFTLotteryFactory {
     function createLottery(
         address nftContract,
         uint256 fee,
-        address fairyringContract,
-        address decrypter
+        address fairyringContract
     ) external override returns (NFTLottery) {
         // console.log("createLottery");
         bool isERC721 = _supportsInterface(nftContract, type(IERC721).interfaceId);
@@ -53,7 +52,7 @@ contract NFTLotteryFactory is INFTLotteryFactory {
             revert NFTLotteryFactory__UnsupportedNFTStandards();
         }
 
-        NFTLottery lottery = _deployLottery(nftHandler, fee, fairyringContract, decrypter);
+        NFTLottery lottery = _deployLottery(nftHandler, fee, fairyringContract);
 
         lotteryTypes[address(lottery)] = standard;
         emit LotteryCreated(address(lottery), standard);
@@ -72,11 +71,10 @@ contract NFTLotteryFactory is INFTLotteryFactory {
     function _deployLottery(
         address nftHandler,
         uint256 fee,
-        address fairyringContract,
-        address decrypter
+        address fairyringContract
     ) internal returns (NFTLottery) {
         // console.log("_deployLottery called.");
-        NFTLotteryProxy lotteryProxy = new NFTLotteryProxy(nftHandler, fee, fairyringContract, decrypter);
+        NFTLotteryProxy lotteryProxy = new NFTLotteryProxy(nftHandler, fee, fairyringContract);
         // console.log("_deployLottery finish.");
         return lotteryProxy.getLottery();
     }
@@ -84,7 +82,6 @@ contract NFTLotteryFactory is INFTLotteryFactory {
 
 contract NFTLotteryProxy {
     address private immutable nftHandler;
-    address private immutable decrypter;
     address private immutable fairyring;
     uint8 private immutable th;
     uint256 private immutable fee;
@@ -92,16 +89,15 @@ contract NFTLotteryProxy {
 
     NFTLottery private _lottery;
 
-    constructor(address _nftHandler, uint256 _fee, address _fairyringContract, address _decrypter) {
+    constructor(address _nftHandler, uint256 _fee, address _fairyringContract) {
         // console.log("NFTLotteryProxy called.");
         nftHandler = _nftHandler;
 
         // Deploy implementation contract
-        _lottery = new NFTLottery(_nftHandler, _fee, _fairyringContract, _decrypter);
+        _lottery = new NFTLottery(_nftHandler, _fee, _fairyringContract);
         implementation = address(_lottery);
         fee = _fee;
         fairyring = _fairyringContract;
-        decrypter = _decrypter;
         // console.log("NFTLotteryProxy finish.");
     }
 
