@@ -13,7 +13,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     // ERRORS //
     ////////////
     error NFTStaking__UnAuthorized();
-    error NFTStaking__WrongDataFilled();
+    error NFTStaking__WrongDataFilled(string);
     error NFTStaking__InsufficientBalance();
 
     ////////////
@@ -45,7 +45,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      */
     function stakeERC721(address tokenAddress, uint256 tokenId) external nonReentrant {
         if (tokenAddress == address(0)) {
-            revert NFTStaking__WrongDataFilled();
+            revert NFTStaking__WrongDataFilled("tokenAddress");
         }
 
         IERC721 nft = IERC721(tokenAddress);
@@ -78,7 +78,11 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      */
     function stakeERC1155(address tokenAddress, uint256 tokenId, uint256 amount) external nonReentrant {
         if (tokenAddress == address(0)) {
-            revert NFTStaking__WrongDataFilled();
+            revert NFTStaking__WrongDataFilled("tokenAddress");
+        }
+
+        if (amount <= 0) {
+            revert NFTStaking__WrongDataFilled("amount");
         }
 
         IERC1155 nft = IERC1155(tokenAddress);
@@ -108,7 +112,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      */
     function unStake(uint256 index) external {
         if (stakes[msg.sender].length <= index) {
-            revert NFTStaking__WrongDataFilled();
+            revert NFTStaking__WrongDataFilled("index");
         }
 
         StakeInfo memory stake = stakes[msg.sender][index];
@@ -143,7 +147,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      */
     function getStakeDuration(address staker, uint256 index) external view returns (uint256) {
         if (stakes[msg.sender].length <= index) {
-            revert NFTStaking__WrongDataFilled();
+            revert NFTStaking__WrongDataFilled("index");
         }
         return block.timestamp - stakes[staker][index].timeStamp;
     }
