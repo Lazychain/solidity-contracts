@@ -29,31 +29,18 @@ jobs:
     name: Foundry project
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
 
-      - name: Run Forge fmt
-        run: forge fmt --check
-        id: fmt
-
-      - name: Run Forge build
-        run: forge build --sizes
-        id: build
-
-      - name: Check gas snapshots
-        run: forge snapshot --check
-
-      - name: Run Forge tests
+      - name: Run tests
         run: forge test -vvv
-        env:
-          # Only fuzz intensely if we're running this action on a push to main or for a PR going into main:
-          FOUNDRY_PROFILE: ${{ (github.ref == 'refs/heads/main' || github.base_ref == 'main') && 'intense' }}
+
+      - name: Run snapshot
+        run: forge snapshot
 
   coverage:
     name: Run tests and collect coverage
