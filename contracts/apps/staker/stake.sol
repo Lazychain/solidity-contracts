@@ -48,6 +48,10 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
             revert NFTStaking__WrongDataFilled();
         }
 
+        if (!IERC721(tokenAddress).supportsInterface(type(IERC721).interfaceId)) {
+            revert NFTStaking__WrongDataFilled();
+        }
+
         IERC721 nft = IERC721(tokenAddress);
 
         if (nft.ownerOf(tokenId) != msg.sender) {
@@ -78,6 +82,10 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      */
     function stakeERC1155(address tokenAddress, uint256 tokenId, uint256 amount) external nonReentrant {
         if (tokenAddress == address(0)) {
+            revert NFTStaking__WrongDataFilled();
+        }
+
+        if (!IERC1155(tokenAddress).supportsInterface(type(IERC1155).interfaceId)) {
             revert NFTStaking__WrongDataFilled();
         }
 
