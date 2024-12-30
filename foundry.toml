@@ -1,4 +1,11 @@
 [profile.default]
+remappings = [
+    'forge-std/=lib/forge-std/src/',
+    "openzeppelin/=lib/openzeppelin-contracts/",
+    '@openzeppelin/=node_modules/@openzeppelin/',
+    'erc721a/=node_modules/erc721a/',
+]
+
 solc_version = '0.8.24'
 src = "./contracts"
 test = 'test'
@@ -6,11 +13,6 @@ script = 'script'
 out = "./out"
 libs = ['node_modules', 'lib']
 allow_paths = ["./node_modules"]
-remappings = [
-    'forge-std/=lib/forge-std/src/',
-    '@openzeppelin/=node_modules/@openzeppelin/',
-    'erc721a/=node_modules/erc721a/',
-]
 # libraries = [
 #     "contracts/utils/JsonStore.sol:JsonStore:0x00000000000000000000000000000F043a000007",
 # ]
