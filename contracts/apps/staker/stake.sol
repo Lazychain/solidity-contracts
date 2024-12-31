@@ -14,14 +14,20 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     ////////////
     error NFTStaking__UnAuthorized();
     error NFTStaking__WrongDataFilled();
+    error NFTStaking__FeeTransferFailed();
     error NFTStaking__InsufficientBalance();
     error NFTStaking__InvalidStakingPeriod();
     error NFTStaking__StakingPeriodNotEnded();
+    error NFTStaking__InsufficientStakingFee();
+    error NFTStaking__InsufficientUnstakingFee();
 
     ////////////
     // EVENTS //
     ////////////
+    event StakingFeeUpdated(uint256 newFee);
+    event UnstakingFeeUpdated(uint256 newFee);
     event StakingPeriodUpdated(uint256 newPeriod);
+    event FeesWithdrawn(address indexed owner, uint256 amount);
     event Staked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
     event UnStaked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
 
@@ -41,15 +47,19 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         bool isERC1155;
     }
 
+    uint256 public stakingFee;
+    uint256 public unstakingFee;
     uint256 public stakingPeriod;
     mapping(address => StakeInfo[]) public stakes; // Staker Address => Stake Info
 
     /////////////////
     // CONSTRUCTOR //
     /////////////////
-    constructor(uint256 _initialStakingPeriod) Ownable(msg.sender) {
+    constructor(uint256 _initialStakingPeriod, uint256 _stakingFee, uint256 _unstakingFee) Ownable(msg.sender) {
         if (_initialStakingPeriod == 0) revert NFTStaking__InvalidStakingPeriod();
         stakingPeriod = _initialStakingPeriod;
+        stakingFee = _stakingFee;
+        unstakingFee = _unstakingFee;
     }
 
     //////////////
@@ -64,6 +74,10 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @param tokenType Type of token being staked (ERC721 or ERC1155)
      */
     function _stake(address tokenAddress, uint256 tokenId, uint256 amount, TokenType tokenType) internal {
+        if (msg.value != stakingFee) {
+            revert NFTStaking__InsufficientStakingFee();
+        }
+
         if (tokenAddress == address(0)) {
             revert NFTStaking__WrongDataFilled();
         }
@@ -114,7 +128,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @param tokenId ID of the token to stake
      * @dev Ensures the token is ERC721 compliant and caller is the owner
      */
-    function stakeERC721(address tokenAddress, uint256 tokenId) external nonReentrant {
+    function stakeERC721(address tokenAddress, uint256 tokenId) external payable nonReentrant {
         _stake(tokenAddress, tokenId, 1, TokenType.ERC721);
     }
 
@@ -125,7 +139,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @param amount Amount of tokens to stake
      * @dev Ensures the token is ERC1155 compliant and caller has sufficient balance
      */
-    function stakeERC1155(address tokenAddress, uint256 tokenId, uint256 amount) external nonReentrant {
+    function stakeERC1155(address tokenAddress, uint256 tokenId, uint256 amount) external payable nonReentrant {
         if (amount < 0) {
             revert NFTStaking__WrongDataFilled();
         }
@@ -136,7 +150,11 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @dev Withdraws staked tokens
      * @param index The index of the stake in the user's stakes array
      */
-    function unStake(uint256 index) external {
+    function unStake(uint256 index) external payable {
+        if (msg.value != unstakingFee) {
+            revert NFTStaking__InsufficientUnstakingFee();
+        }
+
         if (stakes[msg.sender].length <= index) {
             revert NFTStaking__WrongDataFilled();
         }
@@ -158,6 +176,37 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         stakes[msg.sender].pop();
 
         emit UnStaked(msg.sender, stake.tokenAddress, stake.tokenId, stake.amount);
+    }
+
+    /**
+     * @notice Updates the staking fee
+     * @param _newFee New fee amount in native token
+     * @dev Only callable by owner
+     */
+    function setStakingFee(uint256 _newFee) external onlyOwner {
+        stakingFee = _newFee;
+        emit StakingFeeUpdated(_newFee);
+    }
+
+    /**
+     * @notice Updates the unstaking fee
+     * @param _newFee New fee amount in native token
+     * @dev Only callable by owner
+     */
+    function setUnstakingFee(uint256 _newFee) external onlyOwner {
+        unstakingFee = _newFee;
+        emit UnstakingFeeUpdated(_newFee);
+    }
+
+    /**
+     * @notice Withdraws accumulated fees to owner
+     * @dev Only callable by owner
+     */
+    function withdrawFees() external onlyOwner {
+        uint256 balance = address(this).balance;
+        (bool success, ) = msg.sender.call{ value: balance }("");
+        if (!success) revert NFTStaking__FeeTransferFailed();
+        emit FeesWithdrawn(msg.sender, balance);
     }
 
     /**
