@@ -22,6 +22,14 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     event Staked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
     event UnStaked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
 
+    /**
+     * @dev Enum to identify different token standards
+     */
+    enum TokenType {
+        ERC721,
+        ERC1155
+    }
+
     struct StakeInfo {
         address tokenAddress;
         uint256 tokenId;
@@ -39,75 +47,79 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     //////////////
 
     /**
-     * @dev Stakes an ERC721 token
-     * @param tokenAddress The address of the ERC721 contract
-     * @param tokenId The ID of the token to stake
+     * @dev Internal function to handle staking of both ERC721 and ERC1155 tokens
+     * @param tokenAddress Address of the token contract
+     * @param tokenId ID of the token to stake
+     * @param amount Amount of tokens to stake (1 for ERC721)
+     * @param tokenType Type of token being staked (ERC721 or ERC1155)
      */
-    function stakeERC721(address tokenAddress, uint256 tokenId) external nonReentrant {
+    function _stake(address tokenAddress, uint256 tokenId, uint256 amount, TokenType tokenType) internal {
         if (tokenAddress == address(0)) {
             revert NFTStaking__WrongDataFilled();
         }
 
-        if (!IERC721(tokenAddress).supportsInterface(type(IERC721).interfaceId)) {
-            revert NFTStaking__WrongDataFilled();
+        // Interface compliance check
+        if (tokenType == TokenType.ERC721) {
+            if (!IERC721(tokenAddress).supportsInterface(type(IERC721).interfaceId)) {
+                revert NFTStaking__WrongDataFilled();
+            }
+        } else {
+            if (!IERC1155(tokenAddress).supportsInterface(type(IERC1155).interfaceId)) {
+                revert NFTStaking__WrongDataFilled();
+            }
         }
 
-        IERC721 nft = IERC721(tokenAddress);
-
-        if (nft.ownerOf(tokenId) != msg.sender) {
-            revert NFTStaking__UnAuthorized();
+        // Transfer tokens
+        if (tokenType == TokenType.ERC721) {
+            IERC721 nft = IERC721(tokenAddress);
+            if (nft.ownerOf(tokenId) != msg.sender) {
+                revert NFTStaking__UnAuthorized();
+            }
+            nft.safeTransferFrom(msg.sender, address(this), tokenId, "");
+        } else {
+            IERC1155 nft = IERC1155(tokenAddress);
+            if (nft.balanceOf(msg.sender, tokenId) < amount) {
+                revert NFTStaking__InsufficientBalance();
+            }
+            nft.safeTransferFrom(msg.sender, address(this), tokenId, amount, "");
         }
 
-        // Transfer nft to contract
-        nft.safeTransferFrom(msg.sender, address(this), tokenId, "");
-
-        stakes[msg.sender].push(
-            StakeInfo({
-                tokenAddress: tokenAddress,
-                tokenId: tokenId,
-                amount: 1,
-                timeStamp: block.timestamp,
-                isERC1155: false
-            })
-        );
-
-        emit Staked(msg.sender, tokenAddress, tokenId, 1);
-    }
-
-    /**
-     * @dev Stakes ERC1155 tokens
-     * @param tokenAddress The address of the ERC1155 contract
-     * @param tokenId The ID of the tokens to stake
-     * @param amount The amount of tokens to stake
-     */
-    function stakeERC1155(address tokenAddress, uint256 tokenId, uint256 amount) external nonReentrant {
-        if (tokenAddress == address(0)) {
-            revert NFTStaking__WrongDataFilled();
-        }
-
-        if (!IERC1155(tokenAddress).supportsInterface(type(IERC1155).interfaceId)) {
-            revert NFTStaking__WrongDataFilled();
-        }
-
-        IERC1155 nft = IERC1155(tokenAddress);
-
-        if (nft.balanceOf(msg.sender, tokenId) < amount) {
-            revert NFTStaking__InsufficientBalance();
-        }
-
-        nft.safeTransferFrom(msg.sender, address(this), tokenId, amount, "");
-
+        // Store stake info
         stakes[msg.sender].push(
             StakeInfo({
                 tokenAddress: tokenAddress,
                 tokenId: tokenId,
                 amount: amount,
                 timeStamp: block.timestamp,
-                isERC1155: true
+                isERC1155: tokenType == TokenType.ERC1155
             })
         );
 
         emit Staked(msg.sender, tokenAddress, tokenId, amount);
+    }
+
+    /**
+     * @notice Stakes an ERC721 token
+     * @param tokenAddress Address of the ERC721 contract
+     * @param tokenId ID of the token to stake
+     * @dev Ensures the token is ERC721 compliant and caller is the owner
+     */
+    function stakeERC721(address tokenAddress, uint256 tokenId) external nonReentrant {
+        _stake(tokenAddress, tokenId, 1, TokenType.ERC721);
+    }
+
+    /**
+     * @notice Stakes ERC1155 tokens
+     * @param tokenAddress Address of the ERC1155 contract
+     * @param tokenId ID of the tokens to stake
+     * @param amount Amount of tokens to stake
+     * @dev Ensures the token is ERC1155 compliant and caller has sufficient balance
+     */
+    function stakeERC1155(address tokenAddress, uint256 tokenId, uint256 amount) external nonReentrant {
+        if (amount < 0) {
+            revert NFTStaking__WrongDataFilled();
+        }
+        _stake(tokenAddress, tokenId, amount, TokenType.ERC1155);
     }
 
     /**
