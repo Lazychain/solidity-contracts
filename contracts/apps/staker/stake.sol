@@ -15,10 +15,13 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     error NFTStaking__UnAuthorized();
     error NFTStaking__WrongDataFilled();
     error NFTStaking__InsufficientBalance();
+    error NFTStaking__InvalidStakingPeriod();
+    error NFTStaking__StakingPeriodNotEnded();
 
     ////////////
     // EVENTS //
     ////////////
+    event StakingPeriodUpdated(uint256 newPeriod);
     event Staked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
     event UnStaked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
 
@@ -38,9 +41,16 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         bool isERC1155;
     }
 
+    uint256 public stakingPeriod;
     mapping(address => StakeInfo[]) public stakes; // Staker Address => Stake Info
 
-    constructor() Ownable(msg.sender) {}
+    /////////////////
+    // CONSTRUCTOR //
+    /////////////////
+    constructor(uint256 _initialStakingPeriod) Ownable(msg.sender) {
+        if (_initialStakingPeriod == 0) revert NFTStaking__InvalidStakingPeriod();
+        stakingPeriod = _initialStakingPeriod;
+    }
 
     //////////////
     // FUNCTION //
@@ -133,6 +143,10 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
 
         StakeInfo memory stake = stakes[msg.sender][index];
 
+        if (block.timestamp < stake.timeStamp + stakingPeriod) {
+            revert NFTStaking__StakingPeriodNotEnded();
+        }
+
         if (stake.isERC1155) {
             IERC1155(stake.tokenAddress).safeTransferFrom(address(this), msg.sender, stake.tokenId, stake.amount, "");
         } else {
@@ -144,6 +158,17 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         stakes[msg.sender].pop();
 
         emit UnStaked(msg.sender, stake.tokenAddress, stake.tokenId, stake.amount);
+    }
+
+    /**
+     * @notice Updates the staking period
+     * @param _newStakingPeriod New staking period in seconds
+     * @dev Only callable by owner
+     */
+    function setStakingPeriod(uint256 _newStakingPeriod) external onlyOwner {
+        if (_newStakingPeriod == 0) revert NFTStaking__InvalidStakingPeriod();
+        stakingPeriod = _newStakingPeriod;
+        emit StakingPeriodUpdated(_newStakingPeriod);
     }
 
     /**
