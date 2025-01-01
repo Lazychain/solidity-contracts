@@ -19,36 +19,27 @@ curl -L https://foundry.paradigm.xyz | bash
 # Follow on-screen command
 ```
 
+## Tests
+
 > Install all the packages
 
 ```sh
-bun i
+bun i # openzeppeling
+forge install # git modules
 ```
 
 > Build contracts
 
 ```sh
+bun run hardhat:compile
 forge build
-# Or
-npm run build
 ```
 
-<details>
-<summary>
-Success message
-</summary>
+> Run tests
 
-```
-> @lazychain/solidity-contracts@0.9.0 build
-> forge build --extra-output-files bin --extra-output-files abi
+```bash
 
-[⠊] Compiling...
-[⠢] Compiling 12 files with Solc 0.8.24
-[⠆] Solc 0.8.24 finished in 118.77ms
-Compiler run successful!
-```
-
-</details>
+``` 
 
 ## Tools
 

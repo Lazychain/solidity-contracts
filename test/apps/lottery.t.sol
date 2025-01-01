@@ -175,9 +175,6 @@ contract LotteryTest is Test, ERC1155Holder {
         emit CampaignStatusChanged(true);
         _lottery.setCampaign(true);
 
-        // and a user
-        vm.startPrank(address(_noFundedUser));
-
         // with enough fee ether to pay a draw()
         deal(address(_noFundedUser), _fee);
 
@@ -188,6 +185,9 @@ contract LotteryTest is Test, ERC1155Holder {
             abi.encodeWithSelector(IFairyringContract.latestRandomness.selector),
             abi.encode(bytes32(0), uint256(guess))
         );
+
+        // and a user
+        vm.startPrank(address(_noFundedUser));
         // and calling draw()
         _lottery.draw{ value: _fee }(guess);
         vm.stopPrank();

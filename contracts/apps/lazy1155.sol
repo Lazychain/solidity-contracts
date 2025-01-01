@@ -60,17 +60,55 @@ contract Lazy1155 is ILazy1155, ERC1155, Ownable, ERC1155Pausable, ERC1155Burnab
         _unpause();
     }
 
-    function mint(address account, uint256 id, uint256 amount, bytes memory data) external onlyOwner {
+    /**
+     * @dev Creates a `value` amount of tokens of type `id`, and assigns them to `account`.
+     *
+     * Emits a {TransferSingle} event.
+     *
+     * Requirements:
+     *
+     * - `to` cannot be the zero address.
+     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received} and return the
+     * acceptance magic value.
+     *
+     * @param to The destination address of the token to being transferred
+     * @param id The ID of the token being transferred
+     * @param amount The amount of tokens being transferred
+     * @param data Additional data with no specified format
+     */
+    function mint(address to, uint256 id, uint256 amount, bytes memory data) external onlyOwner {
         uint256 totalSuply = totalSupply();
         //console.log("[%s]", totalSuply);
         // TODO: overflow?
         if (totalSuply + amount > _totalEmittion) {
             revert Lazy1155__TokenCapExceeded();
         }
-        _mint(account, id, amount, data);
+        _mint(to, id, amount, data);
     }
 
-    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) external onlyOwner {
+    /**
+     * @dev bacthed version of mint.
+     *
+     * Emits a {TransferBatch} event.
+     *
+     * Requirements:
+     *
+     * - `ids` and `values` must have the same length.
+     * - `to` cannot be the zero address.
+     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155BatchReceived} and return the
+     * acceptance magic value.
+     *
+     * @param to The destination address of the token to being transferred
+     * @param ids The list of IDs of the token being transferred
+     * @param amounts The list of amount of tokens to being transferred
+     * @param data Additional data with no specified format
+     */
+    function mintBatch(
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    ) external onlyOwner {
         uint256 totalSuply = totalSupply();
         //console.log("mintBatch [%s]", totalSuply);
         uint256 totalAmount = 0;
@@ -97,14 +135,20 @@ contract Lazy1155 is ILazy1155, ERC1155, Ownable, ERC1155Pausable, ERC1155Burnab
         super._update(from, to, ids, values);
     }
 
-    function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) public override(ILazy1155, ERC1155) {
-        super.safeTransferFrom(from,to,id,value,data);
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 id,
+        uint256 value,
+        bytes memory data
+    ) public override(ILazy1155, ERC1155) {
+        super.safeTransferFrom(from, to, id, value, data);
     }
 
-    function balanceOf(address account, uint256 id) public view override(ILazy1155, ERC1155) returns (uint256){
-        return super.balanceOf(account,id);
+    function balanceOf(address account, uint256 id) public view override(ILazy1155, ERC1155) returns (uint256) {
+        return super.balanceOf(account, id);
     }
-    function isApprovedForAll(address owner, address operator) public view override(ILazy1155, ERC1155) returns (bool){
-        return super.isApprovedForAll(owner,operator);
+    function isApprovedForAll(address owner, address operator) public view override(ILazy1155, ERC1155) returns (bool) {
+        return super.isApprovedForAll(owner, operator);
     }
 }

@@ -135,7 +135,7 @@ contract NFTLottery is Ownable, ERC1155Holder {
     function draw(
         uint256 userGuess
     ) external payable noContractCall noZeroAddress openCampaign fees returns (uint256 nftId) {
-        require(tx.origin == msg.sender, "Not EOA");
+        // require(tx.origin == msg.sender, "Not EOA");
         bool isWinner = false; // default not win as start
         nftId = totalCollectionItems + 1; // Ensure that this nft id doesnt exist
         if (userGuess > 100) revert NFTLottery__GuessValueOutOfRange();

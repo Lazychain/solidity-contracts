@@ -26,6 +26,9 @@ bytecode_hash = 'ipfs'
 deny_warnings = true
 fail_on_revert = true
 
+verbosity = 2
+chain_id = 31337
+
 # Optimizer
 optimizer = true
 optimizer_runs = 1000
@@ -81,3 +84,12 @@ repository = "https://github.com/Lazychain/docs"
 
 [profile.ci]
 verbosity = 4
+
+# [rpc_endpoints]
+# forma_mainnet = "${FORMA_MAINNET_CHAIN_RPC}"
+# forma_testnet = "${FORMA_TESTNET_CHAIN_RPC}"
+
+# [etherscan]
+# forma_mainnet = { key = "${FORMA_MAINNET_EXPLORER_URL}" }
+# forma_testnet = { key = "${FORMA_TESTNET_EXPLORER_URL}" }
+
