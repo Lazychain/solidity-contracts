@@ -517,27 +517,16 @@ library JsonUtil {
         string memory indexStr = substring(path, bracketIndex + 1, bytes(path).length - 1);
         uint256 targetIndex = strToUint(indexStr);
 
+        // Find array token
         uint256 arrayToken = findToken(tokens, 0, arrayName, jsonBlob);
-        if (arrayToken == 0) return 0;
+        if (arrayToken == 0 || tokens[arrayToken].jsonType != JsonParser.JsonType.ARRAY) return 0;
 
-        if (tokens[arrayToken].jsonType != JsonParser.JsonType.ARRAY) {
-            return 0;
-        }
+        // Each object in array takes 5 tokens
+        uint256 pos = arrayToken + 1;  // Start at first object
+        pos += targetIndex * 5;        // Skip to target object
 
-        // Find element at index
-        uint256 elemIndex = 0;
-        uint256 pos = arrayToken + 1;
-
-        while (pos < tokens.length && tokens[pos].startSet && tokens[pos].start < tokens[arrayToken].end) {
-            if (elemIndex == targetIndex) {
-                return pos;
-            }
-            elemIndex++;
-            pos++;
-        }
-        return 0;
+        return pos;
     }
-
     /// @notice Converts a string representation of a number to uint256
     /// @dev Only processes positive integers
     /// @param str String containing the number to convert
