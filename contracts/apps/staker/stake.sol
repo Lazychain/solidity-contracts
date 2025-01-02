@@ -225,11 +225,23 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         emit UnStaked(msg.sender, stake.tokenAddress, stake.tokenId, stake.amount);
     }
 
+    /**
+     * @notice Sets the reward rate for staking
+     * @param _newRate New reward rate per second in wei
+     * @dev Only callable by owner, updates reward calculation rate
+     * @custom:security non-reentrant
+     */
     function setRewardRate(uint256 _newRate) external onlyOwner {
         rewardRate = _newRate;
         emit RewardRateUpdated(_newRate);
     }
 
+    /**
+     * @notice Calculates rewards based on staking duration
+     * @param stakeDuration Duration of stake in seconds
+     * @return uint256 Amount of rewards in wei
+     * @dev Reverts if reward rate is not configured
+     */
     function calculateRewards(uint256 stakeDuration) public view returns (uint256) {
         if (rewardRate == 0) revert NFTStaking__RewardsNotConfigured();
         return stakeDuration * rewardRate;
@@ -286,6 +298,13 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         return stakes[staker];
     }
 
+    /**
+     * @notice Retrieves the current status of a stake
+     * @param staker Address of the staker
+     * @param index Index of the stake in staker's array
+     * @return StakingStatus Current status of the stake
+     * @dev Returns one of: STAKED, UNSTAKING_INITIATED, UNSTAKED
+     */
     function getStakeStatus(address staker, uint256 index) external view returns (StakingStatus) {
         if (stakes[staker].length <= index) revert NFTStaking__WrongDataFilled();
         return stakes[staker][index].status;
@@ -304,6 +323,13 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         return block.timestamp - stakes[staker][index].timeStamp;
     }
 
+    /**
+     * @notice Gets unclaimed rewards for a specific stake
+     * @param staker Address of the staker
+     * @param index Index of the stake
+     * @return uint256 Amount of pending rewards in wei
+     * @dev Returns 0 if stake is not in STAKED status
+     */
     function getPendingRewards(address staker, uint256 index) external view returns (uint256) {
         if (stakes[staker].length <= index) revert NFTStaking__WrongDataFilled();
         StakeInfo memory stake = stakes[staker][index];
