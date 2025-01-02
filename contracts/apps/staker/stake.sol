@@ -180,6 +180,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @notice Stakes an ERC721 token
      * @param tokenAddress Address of the ERC721 contract
      * @param tokenId ID of the token to stake
+     * @param ipfsHash ipfs hash of the ERC721
      * @dev Ensures the token is ERC721 compliant and caller is the owner
      */
     function stakeERC721(address tokenAddress, uint256 tokenId, string memory ipfsHash) external payable nonReentrant {
@@ -191,6 +192,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @param tokenAddress Address of the ERC1155 contract
      * @param tokenId ID of the tokens to stake
      * @param amount Amount of tokens to stake
+     * @param ipfsHash ipfs hash of the ERC721
      * @dev Ensures the token is ERC1155 compliant and caller has sufficient balance
      */
     function stakeERC1155(
@@ -261,16 +263,32 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         emit UnStaked(msg.sender, stake.tokenAddress, stake.tokenId, stake.amount);
     }
 
+    /**
+     * @notice Adds or removes a collection from the whitelist
+     * @param collection Address of the NFT collection
+     * @param status Whitelist status to set
+     * @dev Only callable by owner
+     */
     function setCollectionWhitelist(address collection, bool status) external onlyOwner {
         whitelistedCollections[collection] = status;
         emit CollectionWhitelisted(collection, status);
     }
 
+    /**
+     * @notice Adds valid IPFS hashes for NFT metadata
+     * @param ipfsHash IPFS hash to validate
+     * @dev Only callable by owner
+     */
     function addValidIPFSHash(string memory ipfsHash) external onlyOwner {
         validIPFSHashes[ipfsHash] = true;
         emit IPFSHashAdded(ipfsHash);
     }
 
+    /**
+     * @notice Updates maximum stakes allowed per user
+     * @param _maxStakes New maximum stakes limit
+     * @dev Only callable by owner
+     */
     function setMaxStakesPerUser(uint256 _maxStakes) external onlyOwner {
         maxStakesPerUser = _maxStakes;
         emit MaxStakesUpdated(_maxStakes);
@@ -340,6 +358,13 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         emit StakingPeriodUpdated(_newStakingPeriod);
     }
 
+    /**
+     * @notice Verifies if an NFT is eligible for staking
+     * @param tokenAddress NFT contract address
+     * @param tokenId Token identifier
+     * @param ipfsHash IPFS hash of the NFT metadata
+     * @return bool indicating if NFT is eligible
+     */
     function verifyNFTEligibility(
         address tokenAddress,
         uint256 tokenId,
