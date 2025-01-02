@@ -13,13 +13,17 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     // ERRORS //
     ////////////
     error NFTStaking__UnAuthorized();
+    error NFTStaking__NFTNotEligible();
     error NFTStaking__WrongDataFilled();
     error NFTStaking__AlreadyUnstaked();
+    error NFTStaking__InvalidIPFSHash();
+    error NFTStaking__NFTAlreadyStaked();
     error NFTStaking__FeeTransferFailed();
     error NFTStaking__InsufficientBalance();
     error NFTStaking__InvalidStakingPeriod();
     error NFTStaking__RewardsNotConfigured();
     error NFTStaking__StakingPeriodNotEnded();
+    error NFTStaking__MaxStakingLimitReached();
     error NFTStaking__InsufficientStakingFee();
     error NFTStaking__InsufficientUnstakingFee();
     error NFTStaking__RewardDistributionFailed();
@@ -27,12 +31,15 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     ////////////
     // EVENTS //
     ////////////
+    event IPFSHashAdded(string ipfsHash);
+    event MaxStakesUpdated(uint256 newMax);
     event StakingFeeUpdated(uint256 newFee);
     event RewardRateUpdated(uint256 newRate);
     event UnstakingFeeUpdated(uint256 newFee);
     event StakingPeriodUpdated(uint256 newPeriod);
     event FeesWithdrawn(address indexed owner, uint256 amount);
     event RewardsDistributed(address indexed staker, uint256 amount);
+    event CollectionWhitelisted(address indexed collection, bool status);
     event UnstakingInitiated(address indexed staker, uint256 indexed tokenId);
     event Staked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
     event UnStaked(address indexed staker, address indexed tokenAddress, uint256 indexed tokenId, uint256 amount);
@@ -58,14 +65,19 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         bool isERC1155;
         StakingStatus status;
         uint256 accumulatedRewards;
+        string ipfsHash;
     }
 
     uint256 public stakingFee;
     uint256 public rewardRate; // Rewards/day ???
     uint256 public unstakingFee;
     uint256 public stakingPeriod;
+    uint256 public maxStakesPerUser;
     mapping(address => StakeInfo[]) public stakes; // Staker Address => Stake Info
+    mapping(string => bool) public validIPFSHashes;
+    mapping(address => uint256) public stakingCount;
     mapping(address => bool) public rewardsDistributed;
+    mapping(address => bool) public whitelistedCollections;
 
     /////////////////
     // CONSTRUCTOR //
@@ -74,13 +86,15 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 _initialStakingPeriod,
         uint256 _stakingFee,
         uint256 _unstakingFee,
-        uint256 _rewardRate
+        uint256 _rewardRate,
+        uint256 _maxStakesPerUser
     ) Ownable(msg.sender) {
         if (_initialStakingPeriod == 0) revert NFTStaking__InvalidStakingPeriod();
         stakingPeriod = _initialStakingPeriod;
         stakingFee = _stakingFee;
         unstakingFee = _unstakingFee;
         rewardRate = _rewardRate;
+        maxStakesPerUser = _maxStakesPerUser;
     }
 
     //////////////
@@ -94,13 +108,27 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @param amount Amount of tokens to stake (1 for ERC721)
      * @param tokenType Type of token being staked (ERC721 or ERC1155)
      */
-    function _stake(address tokenAddress, uint256 tokenId, uint256 amount, TokenType tokenType) internal {
+    function _stake(
+        address tokenAddress,
+        uint256 tokenId,
+        uint256 amount,
+        TokenType tokenType,
+        string memory ipfsHash
+    ) internal {
         if (msg.value != stakingFee) {
             revert NFTStaking__InsufficientStakingFee();
         }
 
+        if (!verifyNFTEligibility(tokenAddress, tokenId, ipfsHash)) {
+            revert NFTStaking__NFTNotEligible();
+        }
+
         if (tokenAddress == address(0)) {
             revert NFTStaking__WrongDataFilled();
+        }
+
+        if (stakingCount[msg.sender] >= maxStakesPerUser) {
+            revert NFTStaking__MaxStakingLimitReached();
         }
 
         // Interface compliance check
@@ -129,6 +157,8 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
             nft.safeTransferFrom(msg.sender, address(this), tokenId, amount, "");
         }
 
+        stakingCount[msg.sender]++;
+
         // Store stake info
         stakes[msg.sender].push(
             StakeInfo({
@@ -138,7 +168,8 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
                 timeStamp: block.timestamp,
                 isERC1155: tokenType == TokenType.ERC1155,
                 status: StakingStatus.STAKED,
-                accumulatedRewards: 0
+                accumulatedRewards: 0,
+                ipfsHash: ipfsHash
             })
         );
 
@@ -151,8 +182,8 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @param tokenId ID of the token to stake
      * @dev Ensures the token is ERC721 compliant and caller is the owner
      */
-    function stakeERC721(address tokenAddress, uint256 tokenId) external payable nonReentrant {
-        _stake(tokenAddress, tokenId, 1, TokenType.ERC721);
+    function stakeERC721(address tokenAddress, uint256 tokenId, string memory ipfsHash) external payable nonReentrant {
+        _stake(tokenAddress, tokenId, 1, TokenType.ERC721, ipfsHash);
     }
 
     /**
@@ -162,11 +193,16 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @param amount Amount of tokens to stake
      * @dev Ensures the token is ERC1155 compliant and caller has sufficient balance
      */
-    function stakeERC1155(address tokenAddress, uint256 tokenId, uint256 amount) external payable nonReentrant {
+    function stakeERC1155(
+        address tokenAddress,
+        uint256 tokenId,
+        uint256 amount,
+        string memory ipfsHash
+    ) external payable nonReentrant {
         if (amount < 0) {
             revert NFTStaking__WrongDataFilled();
         }
-        _stake(tokenAddress, tokenId, amount, TokenType.ERC1155);
+        _stake(tokenAddress, tokenId, amount, TokenType.ERC1155, ipfsHash);
     }
 
     /**
@@ -223,6 +259,21 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         stake.status = StakingStatus.UNSTAKED;
 
         emit UnStaked(msg.sender, stake.tokenAddress, stake.tokenId, stake.amount);
+    }
+
+    function setCollectionWhitelist(address collection, bool status) external onlyOwner {
+        whitelistedCollections[collection] = status;
+        emit CollectionWhitelisted(collection, status);
+    }
+
+    function addValidIPFSHash(string memory ipfsHash) external onlyOwner {
+        validIPFSHashes[ipfsHash] = true;
+        emit IPFSHashAdded(ipfsHash);
+    }
+
+    function setMaxStakesPerUser(uint256 _maxStakes) external onlyOwner {
+        maxStakesPerUser = _maxStakes;
+        emit MaxStakesUpdated(_maxStakes);
     }
 
     /**
@@ -287,6 +338,29 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         if (_newStakingPeriod == 0) revert NFTStaking__InvalidStakingPeriod();
         stakingPeriod = _newStakingPeriod;
         emit StakingPeriodUpdated(_newStakingPeriod);
+    }
+
+    function verifyNFTEligibility(
+        address tokenAddress,
+        uint256 tokenId,
+        string memory ipfsHash
+    ) public view returns (bool) {
+        if (!whitelistedCollections[tokenAddress]) return false;
+        if (!validIPFSHashes[ipfsHash]) return false;
+
+        // Check if NFT is already staked
+        StakeInfo[] memory userStakes = stakes[msg.sender];
+        for (uint i = 0; i < userStakes.length; i++) {
+            if (
+                userStakes[i].tokenAddress == tokenAddress &&
+                userStakes[i].tokenId == tokenId &&
+                userStakes[i].status == StakingStatus.STAKED
+            ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
