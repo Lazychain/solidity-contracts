@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import { Lazy721 } from "../lazy721.sol";
+import { Lazy721A } from "../lazy721a.sol";
+import { Lazy1155 } from "../lazy1155.sol";
+import { ILazy1155 } from "../../interfaces/token/ILazy1155.sol";
 import { Ownable } from "../../../node_modules/@openzeppelin/contracts/access/Ownable.sol";
 import { IERC721 } from "../../../node_modules/@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC1155 } from "../../../node_modules/@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
@@ -19,6 +23,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     error NFTStaking__InvalidIPFSHash();
     error NFTStaking__NFTAlreadyStaked();
     error NFTStaking__FeeTransferFailed();
+    error NFTStaking__UnsupportedNFTType();
     error NFTStaking__InsufficientBalance();
     error NFTStaking__InvalidStakingPeriod();
     error NFTStaking__RewardsNotConfigured();
@@ -66,7 +71,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         bool isERC1155;
         StakingStatus status;
         uint256 accumulatedRewards;
-        string ipfsHash;
+        // string ipfsHash;
     }
 
     uint256 public stakingFee;
@@ -109,19 +114,19 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @param amount Amount of tokens to stake (1 for ERC721)
      * @param tokenType Type of token being staked (ERC721 or ERC1155)
      */
-    function _stake(
-        address tokenAddress,
-        uint256 tokenId,
-        uint256 amount,
-        TokenType tokenType,
-        string memory ipfsHash
-    ) internal {
+    function _stake(address tokenAddress, uint256 tokenId, uint256 amount, TokenType tokenType) internal {
         if (msg.value != stakingFee) {
             revert NFTStaking__InsufficientStakingFee();
         }
 
-        if (!verifyNFTEligibility(tokenAddress, tokenId, ipfsHash)) {
+        bool isERC1155 = tokenType == TokenType.ERC1155;
+
+        if (!verifyNFTEligibility(tokenAddress, tokenId, isERC1155)) {
             revert NFTStaking__NFTNotEligible();
+        }
+
+        if (!verifyNFTOwnership(tokenAddress, msg.sender, tokenId, isERC1155, amount)) {
+            revert NFTStaking__UnAuthorized();
         }
 
         if (tokenAddress == address(0)) {
@@ -147,15 +152,9 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         // nonreentrant is for this part
         if (tokenType == TokenType.ERC721) {
             IERC721 nft = IERC721(tokenAddress);
-            if (nft.ownerOf(tokenId) != msg.sender) {
-                revert NFTStaking__UnAuthorized();
-            }
             nft.safeTransferFrom(msg.sender, address(this), tokenId, "");
         } else {
             IERC1155 nft = IERC1155(tokenAddress);
-            if (nft.balanceOf(msg.sender, tokenId) < amount) {
-                revert NFTStaking__InsufficientBalance();
-            }
             nft.safeTransferFrom(msg.sender, address(this), tokenId, amount, "");
         }
 
@@ -171,8 +170,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
                 lastRewardBlock: block.number,
                 isERC1155: tokenType == TokenType.ERC1155,
                 status: StakingStatus.STAKED,
-                accumulatedRewards: 0,
-                ipfsHash: ipfsHash
+                accumulatedRewards: 0
             })
         );
 
@@ -183,11 +181,10 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @notice Stakes an ERC721 token
      * @param tokenAddress Address of the ERC721 contract
      * @param tokenId ID of the token to stake
-     * @param ipfsHash ipfs hash of the ERC721
      * @dev Ensures the token is ERC721 compliant and caller is the owner
      */
-    function stakeERC721(address tokenAddress, uint256 tokenId, string memory ipfsHash) external payable nonReentrant {
-        _stake(tokenAddress, tokenId, 1, TokenType.ERC721, ipfsHash);
+    function stakeERC721(address tokenAddress, uint256 tokenId) external payable nonReentrant {
+        _stake(tokenAddress, tokenId, 1, TokenType.ERC721);
     }
 
     /**
@@ -195,19 +192,13 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @param tokenAddress Address of the ERC1155 contract
      * @param tokenId ID of the tokens to stake
      * @param amount Amount of tokens to stake
-     * @param ipfsHash ipfs hash of the ERC721
      * @dev Ensures the token is ERC1155 compliant and caller has sufficient balance
      */
-    function stakeERC1155(
-        address tokenAddress,
-        uint256 tokenId,
-        uint256 amount,
-        string memory ipfsHash
-    ) external payable nonReentrant {
+    function stakeERC1155(address tokenAddress, uint256 tokenId, uint256 amount) external payable nonReentrant {
         if (amount < 0) {
             revert NFTStaking__WrongDataFilled();
         }
-        _stake(tokenAddress, tokenId, amount, TokenType.ERC1155, ipfsHash);
+        _stake(tokenAddress, tokenId, amount, TokenType.ERC1155);
     }
 
     /**
@@ -365,32 +356,67 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
 
     /**
      * @notice Verifies if an NFT is eligible for staking
-     * @param tokenAddress NFT contract address
-     * @param tokenId Token identifier
-     * @param ipfsHash IPFS hash of the NFT metadata
-     * @return bool indicating if NFT is eligible
+     * @param tokenAddress The address of the NFT contract
+     * @param tokenId The ID of the NFT
+     * @param isERC1155 Whether the NFT is an ERC1155 token
+     * @return bool True if the NFT is eligible for staking, false otherwise
      */
-    function verifyNFTEligibility(
-        address tokenAddress,
-        uint256 tokenId,
-        string memory ipfsHash
-    ) public view returns (bool) {
-        if (!whitelistedCollections[tokenAddress]) return false;
-        if (!validIPFSHashes[ipfsHash]) return false;
-
-        // Check if NFT is already staked
-        StakeInfo[] memory userStakes = stakes[msg.sender];
-        for (uint i = 0; i < userStakes.length; i++) {
-            if (
-                userStakes[i].tokenAddress == tokenAddress &&
-                userStakes[i].tokenId == tokenId &&
-                userStakes[i].status == StakingStatus.STAKED
-            ) {
+    function verifyNFTEligibility(address tokenAddress, uint256 tokenId, bool isERC1155) public view returns (bool) {
+        if (isERC1155) {
+            try ILazy1155(tokenAddress).tokenExists(tokenId) returns (bool exists) {
+                return exists;
+            } catch {
                 return false;
             }
+        } else {
+            // Try Lazy721 first
+            try Lazy721(tokenAddress).tokenURI(tokenId) returns (string memory uri) {
+                return bytes(uri).length > 0;
+            } catch {
+                // Try Lazy721A if Lazy721 fails
+                try Lazy721A(tokenAddress).tokenURI(tokenId) returns (string memory uri) {
+                    return bytes(uri).length > 0;
+                } catch {
+                    return false;
+                }
+            }
         }
+    }
 
-        return true;
+    /**
+     * @notice Verifies the ownership of an NFT
+     * @param tokenAddress The address of the NFT contract
+     * @param owner The address of the claimed owner
+     * @param tokenId The ID of the NFT
+     * @param isERC1155 Whether the NFT is an ERC1155 token
+     * @param amount The amount of tokens being verified (relevant for ERC1155)
+     * @return bool True if the owner holds the specified token, false otherwise
+     */
+    function verifyNFTOwnership(
+        address tokenAddress,
+        address owner,
+        uint256 tokenId,
+        bool isERC1155,
+        uint256 amount
+    ) public view returns (bool) {
+        if (isERC1155) {
+            try ILazy1155(tokenAddress).isOwnerOfToken(owner, tokenId) returns (bool isOwner) {
+                if (!isOwner) return false;
+                return ILazy1155(tokenAddress).balanceOf(owner, tokenId) >= amount;
+            } catch {
+                return false;
+            }
+        } else {
+            try Lazy721(tokenAddress).ownerOf(tokenId) returns (address tokenOwner) {
+                return tokenOwner == owner;
+            } catch {
+                try Lazy721A(tokenAddress).ownerOf(tokenId) returns (address tokenOwner) {
+                    return tokenOwner == owner;
+                } catch {
+                    return false;
+                }
+            }
+        }
     }
 
     /**
@@ -403,11 +429,11 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Retrieves the current status of a stake
-     * @param staker Address of the staker
-     * @param index Index of the stake in staker's array
-     * @return StakingStatus Current status of the stake
-     * @dev Returns one of: STAKED, UNSTAKING_INITIATED, UNSTAKED
+     * @notice Retrieves the status of a specific stake
+     * @param staker The address of the staker
+     * @param index The index of the stake in the user's stakes array
+     * @return StakingStatus The current status of the stake (STAKED, UNSTAKING_INITIATED, or UNSTAKED)
+     * @dev Reverts if the index is invalid
      */
     function getStakeStatus(address staker, uint256 index) external view returns (StakingStatus) {
         if (stakes[staker].length <= index) revert NFTStaking__WrongDataFilled();
@@ -415,10 +441,11 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Gets the stake duration for a specific stake
+     * @notice Gets the staking duration for a specific stake
      * @param staker The address of the staker
-     * @param index The index of the stake
-     * @return uint256 The duration of the stake in seconds
+     * @param index The index of the stake in the user's stakes array
+     * @return uint256 The duration of the stake in blocks
+     * @dev Reverts if the index is invalid
      */
     function getStakeDuration(address staker, uint256 index) external view returns (uint256) {
         if (stakes[msg.sender].length <= index) {
@@ -442,6 +469,13 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         return calculateRewards(stake.lastRewardBlock, block.number);
     }
 
+    /**
+     * @notice Retrieves the remaining blocks for a specific stake
+     * @param staker The address of the staker
+     * @param index The index of the stake in the user's stakes array
+     * @return uint256 The number of blocks remaining until the stake period ends
+     * @dev Returns 0 if the stake period has already ended
+     */
     function getRemainingBlocks(address staker, uint256 index) external view returns (uint256) {
         if (stakes[staker].length <= index) revert NFTStaking__WrongDataFilled();
         StakeInfo memory stake = stakes[staker][index];

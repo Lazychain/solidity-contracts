@@ -70,7 +70,12 @@ contract Lazy1155 is ILazy1155, ERC1155, Ownable, ERC1155Pausable, ERC1155Burnab
         _mint(account, id, amount, data);
     }
 
-    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) external onlyOwner {
+    function mintBatch(
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    ) external onlyOwner {
         uint256 totalSuply = totalSupply();
         //console.log("mintBatch [%s]", totalSuply);
         uint256 totalAmount = 0;
@@ -97,14 +102,21 @@ contract Lazy1155 is ILazy1155, ERC1155, Ownable, ERC1155Pausable, ERC1155Burnab
         super._update(from, to, ids, values);
     }
 
-    function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) public override(ILazy1155, ERC1155) {
-        super.safeTransferFrom(from,to,id,value,data);
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 id,
+        uint256 value,
+        bytes memory data
+    ) public override(ILazy1155, ERC1155) {
+        super.safeTransferFrom(from, to, id, value, data);
     }
 
-    function balanceOf(address account, uint256 id) public view override(ILazy1155, ERC1155) returns (uint256){
-        return super.balanceOf(account,id);
+    function balanceOf(address account, uint256 id) public view override(ILazy1155, ERC1155) returns (uint256) {
+        return super.balanceOf(account, id);
     }
-    function isApprovedForAll(address owner, address operator) public view override(ILazy1155, ERC1155) returns (bool){
-        return super.isApprovedForAll(owner,operator);
+
+    function isApprovedForAll(address owner, address operator) public view override(ILazy1155, ERC1155) returns (bool) {
+        return super.isApprovedForAll(owner, operator);
     }
 }
