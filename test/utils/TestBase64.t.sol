@@ -17,7 +17,7 @@ contract Base64Test is Test {
     function testEncodeURL() public pure {
         bytes memory data = bytes("http://lazy.fun:8545");
         string memory encodedURL = Base64.encodeURL(data);
-        string memory expected = "aHR0cDovL3BlcGUuY29tOjg1NDU=";
+        string memory expected = "aHR0cDovL2xhenkuZnVuOjg1NDU=";
         assertEq(encodedURL, expected, "Base64URL encode failed");
     }
 
@@ -70,10 +70,10 @@ contract Base64Test is Test {
             tooLongInput[i] = 0x41; // ASCII 'A'
         }
 
-        vm.expectRevert("Base64: input too long");
+        vm.expectRevert(Base64.Base64InputTooLong.selector);
         Base64.encode(tooLongInput);
 
-        vm.expectRevert("Base64: input too long");
+        vm.expectRevert(Base64.Base64InputTooLong.selector);
         Base64.encodeURL(tooLongInput);
 
         // Test with exactly max length (should pass)
@@ -91,10 +91,10 @@ contract Base64Test is Test {
         // Create input with length not multiple of 4
         string memory invalidLength = "SGVsbG8=W"; // 9 characters
 
-        vm.expectRevert("Base64: invalid input length");
+        vm.expectRevert(Base64.Base64InvalidInputLength.selector);
         Base64.decode(invalidLength);
 
-        vm.expectRevert("Base64: invalid input length");
+        vm.expectRevert(Base64.Base64InvalidInputLength.selector);
         Base64.decodeURL(invalidLength);
     }
 }
