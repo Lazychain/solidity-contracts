@@ -110,7 +110,7 @@ library Base64 {
         uint256 len = bytes(data).length; // Get the length of the input encoded data
         if (len == 0) return ""; // If the input is empty, return an empty bytes array
         if (len > MAX_ENCODED_LENGTH) revert Base64InputTooLong();
-        if (len % 4 == 0) revert Base64InvalidInputLength(); // Ensure input is properly padded
+        if (len % 4 != 0) revert Base64InvalidInputLength(); // Ensure input is properly padded
         bytes memory bytesTable = bytes(table);
         uint256 bytesTableLength = bytesTable.length;
         // Initialize the decoding lookup table (map characters to their indices)
