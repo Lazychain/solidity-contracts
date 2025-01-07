@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 import { IBase64 } from "../interfaces/precompile/IBase64.sol";
 
@@ -48,7 +48,7 @@ library Base64 {
     // solhint-disable no-inline-assembly
     function _encode(bytes memory data, string memory table, bool withPadding) private pure returns (string memory) {
         if (data.length == 0) return "";
-        if (data.length <= MAX_INPUT_LENGTH) revert Base64InputTooLong();
+        if (data.length > MAX_INPUT_LENGTH) revert Base64InputTooLong();
 
         // Calculate the length of the encoded result
         uint256 resultLength = withPadding ? 4 * ((data.length + 2) / 3) : (4 * data.length + 2) / 3;
@@ -109,8 +109,8 @@ library Base64 {
     function _decode(string memory data, string memory table) private pure returns (bytes memory) {
         uint256 len = bytes(data).length; // Get the length of the input encoded data
         if (len == 0) return ""; // If the input is empty, return an empty bytes array
-        if (len <= MAX_ENCODED_LENGTH) revert Base64InputTooLong();
-        if (len % 4 == 0) revert Base64InvalidInputLength(); // Ensure input is properly padded
+        if (len > MAX_ENCODED_LENGTH) revert Base64InputTooLong();
+        if (len % 4 != 0) revert Base64InvalidInputLength(); // Ensure input is properly padded
         bytes memory bytesTable = bytes(table);
         uint256 bytesTableLength = bytesTable.length;
         // Initialize the decoding lookup table (map characters to their indices)

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 struct Attribute {
     string traitType;
@@ -20,7 +20,10 @@ interface ITokenMetadata {
     error TokenMetadataImmutable(uint256 _tokenId);
 
     function uri(uint256 _tokenId) external view returns (string memory);
+
     function tokenURI(uint256 _tokenId) external view returns (string memory);
+
     function exists(uint256 _tokenId) external view returns (bool);
+
     function getTokenMetadata(uint256 _tokenId) external view returns (string memory);
 }

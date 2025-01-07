@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { IFairyringContract, IDecrypter } from "./Ifairyring.sol";
+import { IFairyringContract } from "../../lib/FairyringContract/src/IFairyringContract.sol";
 // import { IERC721A } from "erc721a/contracts/IERC721A.sol";
 import { Lazy1155 } from "./lazy1155.sol";
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 // import { console } from "forge-std/console.sol";
 import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
@@ -21,7 +21,7 @@ import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC11
  * If win, it transfer ownership of a nft from a list
  */
 contract NFTLottery is Ownable, ERC1155Holder {
-    event LotteryInitialized(address decrypter, uint256 fee);
+    event LotteryInitialized(address fairyringContract, uint256 fee);
     event RewardWithdrawn(address by, uint256 amount);
     event LotteryDrawn(address indexed player, bool result, uint256 nftId, uint256 totalDraws);
     event MintedNft(address indexed player, uint256 nftId);
@@ -51,7 +51,7 @@ contract NFTLottery is Ownable, ERC1155Holder {
         uint256 pooPoints; // Points accumulated by the user
     }
 
-    mapping(address => UserNameSpace) public userDetails; //other details of users
+    mapping(address => UserNameSpace) private userDetails; //other details of users
 
     /// @notice Fee in TIA
     uint256 public fee = 0.01 ether;
@@ -59,11 +59,8 @@ contract NFTLottery is Ownable, ERC1155Holder {
     /// @notice Total number of draws that have occurred
     uint256 public totalDraws = 0;
 
-    /// @notice Reference to an external decryption contract
-    IDecrypter public decrypterContract;
-
     /// @notice This will help with generating random numbers
-    IFairyringContract public fairyringContract;
+    IFairyringContract private fairyringContract;
 
     /// @notice Collection
     Lazy1155 private _nft;
@@ -78,12 +75,11 @@ contract NFTLottery is Ownable, ERC1155Holder {
 
     /**
      * @notice Initializes the lottery with a decryption contract and a fee.
-     * @param _decrypter Address of the decryption contract
      * @param _fee The fee required to submit a draw
      * @param _fairyringContract Address of the fairy ring contract
      * @param _erc1155 A list of NFTs Addresses
      */
-    constructor(address _erc1155, uint256 _fee, address _fairyringContract, address _decrypter) Ownable(msg.sender) {
+    constructor(address _erc1155, uint256 _fee, address _fairyringContract) Ownable(msg.sender) {
         // console.log("lottery ctro called. [%s]",_erc1155);
         _nft = Lazy1155(_erc1155);
         _tokensIdCap = 0;
@@ -96,10 +92,9 @@ contract NFTLottery is Ownable, ERC1155Holder {
             }
         }
 
-        decrypterContract = IDecrypter(_decrypter);
         fee = _fee;
         fairyringContract = IFairyringContract(_fairyringContract);
-        emit LotteryInitialized(_decrypter, _fee);
+        emit LotteryInitialized(_fairyringContract, _fee);
         // console.log("lottery ctro finish");
     }
 
@@ -109,10 +104,14 @@ contract NFTLottery is Ownable, ERC1155Holder {
         emit CampaignStatusChanged(_isCampaignOpen);
     }
 
-    function withdraw() external onlyOwner {
+    function withdraw(address to) external onlyOwner {
         uint256 balance = address(this).balance;
-        emit RewardWithdrawn(msg.sender, balance);
+        emit RewardWithdrawn(to, balance);
         payable(msg.sender).transfer(balance);
+    }
+
+    function owner_balance() external view returns (uint256){
+        return address(this).balance;
     }
 
     // EXECUTE:ANYONE:draw(guess: number) -> Result(draw:boolean, error)
@@ -136,6 +135,7 @@ contract NFTLottery is Ownable, ERC1155Holder {
     function draw(
         uint256 userGuess
     ) external payable noContractCall noZeroAddress openCampaign fees returns (uint256 nftId) {
+        // require(tx.origin == msg.sender, "Not EOA");
         bool isWinner = false; // default not win as start
         nftId = totalCollectionItems + 1; // Ensure that this nft id doesnt exist
         if (userGuess > 100) revert NFTLottery__GuessValueOutOfRange();

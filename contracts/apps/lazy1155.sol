@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 import { ERC1155 } from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import { ERC1155Burnable } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import { ERC1155Pausable } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Pausable.sol";
 import { ERC1155Supply } from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 import { Strings } from "../utils/Strings.sol";
 import { Integers } from "../utils/Integers.sol";
@@ -60,16 +60,50 @@ contract Lazy1155 is ILazy1155, ERC1155, Ownable, ERC1155Pausable, ERC1155Burnab
         _unpause();
     }
 
-    function mint(address account, uint256 id, uint256 amount, bytes memory data) external onlyOwner {
+    /**
+     * @dev Creates a `value` amount of tokens of type `id`, and assigns them to `account`.
+     *
+     * Emits a {TransferSingle} event.
+     *
+     * Requirements:
+     *
+     * - `to` cannot be the zero address.
+     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received} and return the
+     * acceptance magic value.
+     *
+     * @param to The destination address of the token to being transferred
+     * @param id The ID of the token being transferred
+     * @param amount The amount of tokens being transferred
+     * @param data Additional data with no specified format
+     */
+    function mint(address to, uint256 id, uint256 amount, bytes memory data) external onlyOwner {
         uint256 totalSuply = totalSupply();
         //console.log("[%s]", totalSuply);
         // TODO: overflow?
         if (totalSuply + amount > _totalEmittion) {
             revert Lazy1155__TokenCapExceeded();
         }
-        _mint(account, id, amount, data);
+        _mint(to, id, amount, data);
     }
 
+
+    /**
+     * @dev bacthed version of mint.
+     *
+     * Emits a {TransferBatch} event.
+     *
+     * Requirements:
+     *
+     * - `ids` and `values` must have the same length.
+     * - `to` cannot be the zero address.
+     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155BatchReceived} and return the
+     * acceptance magic value.
+     *
+     * @param to The destination address of the token to being transferred
+     * @param ids The list of IDs of the token being transferred
+     * @param amounts The list of amount of tokens to being transferred
+     * @param data Additional data with no specified format
+     */
     function mintBatch(
         address to,
         uint256[] memory ids,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 interface IJsonUtil {
     /// @dev Retrieves the value at the specified path in the JSON blob.

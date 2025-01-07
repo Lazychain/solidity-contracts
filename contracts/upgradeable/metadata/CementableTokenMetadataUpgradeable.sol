@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 import { ICementableTokenMetadata } from "../../interfaces/metadata/ICementableTokenMetadata.sol";
 import { UpdatableTokenMetadataUpgradeable } from "./UpdatableTokenMetadataUpgradeable.sol";

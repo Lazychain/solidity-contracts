@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 import { Base64 } from "./Base64.sol";
 import { JsonUtil } from "./JsonUtil.sol";
@@ -12,7 +12,7 @@ import { IJsonStore } from "../interfaces/precompile/IJsonStore.sol";
  */
 library JsonStore {
     // solhint-disable private-vars-leading-underscore
-    IJsonStore internal constant STORE = IJsonStore(0x00000000000000000000000000000F043a000007);
+    // IJsonStore internal constant STORE = IJsonStore(0x00000000000000000000000000000F043a000007);
     // IBase64 public constant BASE64 = IBase64(0x00000000000000000000000000000f043a000004);
 
     ////////////

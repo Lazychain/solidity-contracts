@@ -7,7 +7,7 @@ import { NFTLottery } from "../../../contracts/apps/lottery.sol";
 import { NFTLotteryFactory } from "../../../contracts/apps/factory/lotteryFactory.sol";
 import { Lazy721 } from "../../../contracts/apps/lazy721.sol";
 import { Lazy1155 } from "../../../contracts/apps/lazy1155.sol";
-import { IFairyringContract } from "../../../contracts/apps/Ifairyring.sol";
+import { IFairyringContract } from "../../../lib/FairyringContract/src/IFairyringContract.sol";
 import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "hardhat/console.sol";
 
@@ -56,7 +56,6 @@ contract LotteryFactoryTest is StdCheats, Test, ERC1155Holder {
         _lottery1155 = _factory.createLottery(
             address(_nft1155),
             _fee,
-            address(_fairyringContract),
             address(_fairyringContract)
         );
 
