@@ -61,7 +61,8 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         address tokenAddress;
         uint256 tokenId;
         uint256 amount;
-        uint256 timeStamp;
+        uint256 startBlock; // Instead of timeStamp
+        uint256 lastRewardBlock;
         bool isERC1155;
         StakingStatus status;
         uint256 accumulatedRewards;
@@ -69,10 +70,10 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
     }
 
     uint256 public stakingFee;
-    uint256 public rewardRate; // Rewards/day ???
+    uint256 public rewardRate; // Rewards/block
     uint256 public unstakingFee;
-    uint256 public stakingPeriod;
     uint256 public maxStakesPerUser;
+    uint256 public stakingPeriodInBlocks; // minimum block passed
     mapping(address => StakeInfo[]) public stakes; // Staker Address => Stake Info
     mapping(string => bool) public validIPFSHashes;
     mapping(address => uint256) public stakingCount;
@@ -90,7 +91,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 _maxStakesPerUser
     ) Ownable(msg.sender) {
         if (_initialStakingPeriod == 0) revert NFTStaking__InvalidStakingPeriod();
-        stakingPeriod = _initialStakingPeriod;
+        stakingPeriodInBlocks = _initialStakingPeriod;
         stakingFee = _stakingFee;
         unstakingFee = _unstakingFee;
         rewardRate = _rewardRate;
@@ -143,6 +144,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         }
 
         // Transfer tokens
+        // nonreentrant is for this part
         if (tokenType == TokenType.ERC721) {
             IERC721 nft = IERC721(tokenAddress);
             if (nft.ownerOf(tokenId) != msg.sender) {
@@ -165,7 +167,8 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
                 tokenAddress: tokenAddress,
                 tokenId: tokenId,
                 amount: amount,
-                timeStamp: block.timestamp,
+                startBlock: block.number,
+                lastRewardBlock: block.number,
                 isERC1155: tokenType == TokenType.ERC1155,
                 status: StakingStatus.STAKED,
                 accumulatedRewards: 0,
@@ -211,7 +214,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @dev Withdraws staked tokens
      * @param index The index of the stake in the user's stakes array
      */
-    function unStake(uint256 index) external payable {
+    function unStake(uint256 index) external payable nonReentrant {
         if (msg.value != unstakingFee) {
             revert NFTStaking__InsufficientUnstakingFee();
         }
@@ -226,13 +229,13 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
             revert NFTStaking__AlreadyUnstaked();
         }
 
-        if (block.timestamp < stake.timeStamp + stakingPeriod) {
+        if (block.number < stake.startBlock + stakingPeriodInBlocks) {
             revert NFTStaking__StakingPeriodNotEnded();
         }
 
         // Calculate rewards before status change
-        uint256 stakeDuration = block.timestamp - stake.timeStamp;
-        uint256 rewards = calculateRewards(stakeDuration);
+        uint256 rewards = calculateRewards(stake.lastRewardBlock, block.number);
+        stake.accumulatedRewards = rewards;
         stake.accumulatedRewards = rewards;
 
         stake.status = StakingStatus.UNSTAKING_INITIATED;
@@ -245,6 +248,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         }
 
         // Distribute rewards
+        // nonreentrant is for this part
         if (rewards > 0) {
             (bool success, ) = msg.sender.call{ value: rewards }("");
             if (!success) {
@@ -307,13 +311,14 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
 
     /**
      * @notice Calculates rewards based on staking duration
-     * @param stakeDuration Duration of stake in seconds
+     * @param startBlock block number at the time of staking
+     * @param currentBlock current block in blockchain
      * @return uint256 Amount of rewards in wei
      * @dev Reverts if reward rate is not configured
      */
-    function calculateRewards(uint256 stakeDuration) public view returns (uint256) {
-        if (rewardRate == 0) revert NFTStaking__RewardsNotConfigured();
-        return stakeDuration * rewardRate;
+    function calculateRewards(uint256 startBlock, uint256 currentBlock) public view returns (uint256) {
+        uint256 blocksPassed = currentBlock - startBlock;
+        return blocksPassed * rewardRate;
     }
 
     /**
@@ -349,13 +354,13 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
 
     /**
      * @notice Updates the staking period
-     * @param _newStakingPeriod New staking period in seconds
+     * @param _stakingDays New staking period in seconds
      * @dev Only callable by owner
      */
-    function setStakingPeriod(uint256 _newStakingPeriod) external onlyOwner {
-        if (_newStakingPeriod == 0) revert NFTStaking__InvalidStakingPeriod();
-        stakingPeriod = _newStakingPeriod;
-        emit StakingPeriodUpdated(_newStakingPeriod);
+    function setStakingPeriod(uint256 _stakingDays) external onlyOwner {
+        if (_stakingDays == 0) revert NFTStaking__InvalidStakingPeriod();
+        stakingPeriodInBlocks = _stakingDays;
+        emit StakingPeriodUpdated(stakingPeriodInBlocks);
     }
 
     /**
@@ -419,7 +424,8 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         if (stakes[msg.sender].length <= index) {
             revert NFTStaking__WrongDataFilled();
         }
-        return block.timestamp - stakes[staker][index].timeStamp;
+        // Calculate duration in blocks
+        return block.number - stakes[staker][index].startBlock;
     }
 
     /**
@@ -433,7 +439,14 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         if (stakes[staker].length <= index) revert NFTStaking__WrongDataFilled();
         StakeInfo memory stake = stakes[staker][index];
         if (stake.status != StakingStatus.STAKED) return 0;
-        uint256 stakeDuration = block.timestamp - stake.timeStamp;
-        return calculateRewards(stakeDuration);
+        return calculateRewards(stake.lastRewardBlock, block.number);
+    }
+
+    function getRemainingBlocks(address staker, uint256 index) external view returns (uint256) {
+        if (stakes[staker].length <= index) revert NFTStaking__WrongDataFilled();
+        StakeInfo memory stake = stakes[staker][index];
+        uint256 endBlock = stake.startBlock + stakingPeriodInBlocks;
+        if (block.number >= endBlock) return 0;
+        return endBlock - block.number;
     }
 }
