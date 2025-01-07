@@ -31,12 +31,12 @@ contract PriorityQueueTest is Test {
     }
 
     function testEmptyQueueExtractReverts() public {
-        vm.expectRevert("Queue is empty");
+        vm.expectRevert(PriorityQueue.QueueIsEmpty.selector);
         pq.extractMax();
     }
 
     function testEmptyQueuePeekReverts() public {
-        vm.expectRevert("Queue is empty");
+        vm.expectRevert(PriorityQueue.QueueIsEmpty.selector);
         pq.peek();
     }
 
@@ -77,5 +77,59 @@ contract PriorityQueueTest is Test {
 
         assertEq(pq.size(), count, "Queue size should match insertions");
         assertEq(pq.peek(), address(uint160(count)), "Max element should be last inserted");
+    }
+
+    function testCopy() public {
+        // Insert some test data
+        pq.insert(address(0x1), 10);
+        pq.insert(address(0x2), 20);
+        pq.insert(address(0x3), 15);
+
+        // Create a copy
+        PriorityQueue.Queue memory copiedQueue = pq.copy();
+
+        // Verify the copy has the same length
+        assertEq(copiedQueue.heap.length, 3, "Copied queue should have same length");
+
+        // Verify each element
+        for (uint256 i = 0; i < 3; i++) {
+            assertEq(
+                copiedQueue.heap[i].priority,
+                pq.heap[i].priority,
+                "Priority should match"
+            );
+            assertEq(
+                copiedQueue.heap[i].value,
+                pq.heap[i].value,
+                "Value should match"
+            );
+        }
+    }
+
+    function testAssemblyCopy() public {
+        // Insert some test data
+        pq.insert(address(0x1), 10);
+        pq.insert(address(0x2), 20);
+        pq.insert(address(0x3), 15);
+
+        // Create a copy using assembly
+        PriorityQueue.Queue memory copiedQueue = pq.assemblyCopy();
+
+        // Verify the copy has the same length
+        assertEq(copiedQueue.heap.length, 3, "Assembly copied queue should have same length");
+
+        // Verify each element
+        for (uint256 i = 0; i < 3; i++) {
+            assertEq(
+                copiedQueue.heap[i].priority,
+                pq.heap[i].priority,
+                "Priority should match in assembly copy"
+            );
+            assertEq(
+                copiedQueue.heap[i].value,
+                pq.heap[i].value,
+                "Value should match in assembly copy"
+            );
+        }
     }
 }

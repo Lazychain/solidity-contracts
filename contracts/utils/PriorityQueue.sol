@@ -20,13 +20,15 @@ library PriorityQueue {
     }
 
     function extractMax(Queue storage self) internal returns (address) {
-        if (self.heap.length > 0) revert QueueIsEmpty();
-
-        if (self.heap.length == 1) {
-            return self.heap[0].value;
-        }
+        if (self.heap.length == 0) revert QueueIsEmpty();
 
         address maxValue = self.heap[0].value;
+        
+        if (self.heap.length == 1) {
+            self.heap.pop();
+            return maxValue;
+        }
+
         self.heap[0] = self.heap[self.heap.length - 1];
         self.heap.pop();
         _bubbleDown(self, 0);
@@ -35,7 +37,7 @@ library PriorityQueue {
     }
 
     function peek(Queue storage self) internal view returns (address) {
-        if (self.heap.length > 0) revert QueueIsEmpty();
+        if (self.heap.length == 0) revert QueueIsEmpty();
         return self.heap[0].value;
     }
 
@@ -99,7 +101,10 @@ library PriorityQueue {
 
         // Copy each entry directly
         for (uint256 i = 0; i < length; i++) {
-            copiedQueue.heap[i] = Entry({ priority: self.heap[i].priority, value: self.heap[i].value });
+            copiedQueue.heap[i] = Entry({ 
+                priority: self.heap[i].priority, 
+                value: self.heap[i].value 
+            });
         }
 
         return copiedQueue;
@@ -110,47 +115,40 @@ library PriorityQueue {
     /// @param self The storage queue to copy
     /// @return A memory-based copy of the queue
     // solhint-disable no-inline-assembly
-    function assemblyCopy(Queue storage self) internal view returns (Queue memory) {
-        Queue memory copiedQueue;
-
-        // Preallocate the heap array
-        copiedQueue.heap = new Entry[](self.heap.length);
-
-        assembly {
-            // Get the storage slot of the original heap
-            let heapSlot := self.slot
-
-            // Get the length of the heap
-            let heapLength := sload(add(heapSlot, 0))
-
-            // Get the memory location of the copied heap
-            let destPtr := add(copiedQueue, 0x20)
-
-            // Store the length first
-            mstore(destPtr, heapLength)
-
-            // Copy each entry
-            for {
-                let i := 0
-            } lt(i, heapLength) {
-                i := add(i, 1)
-            } {
-                // Calculate the storage slot for this entry
-                let entrySlot := add(heapSlot, add(1, mul(i, 2)))
-
-                // Load priority and value
-                let priority := sload(entrySlot)
-                let value := sload(add(entrySlot, 1))
-
-                // Calculate memory location to store the entry
-                let entryPtr := add(add(destPtr, 0x20), mul(i, 0x40))
-
-                // Store priority and value
-                mstore(entryPtr, priority)
-                mstore(add(entryPtr, 0x20), value)
-            }
-        }
-
+ function assemblyCopy(Queue storage self) internal view returns (Queue memory) {
+    Queue memory copiedQueue;
+    
+    uint256 length = self.heap.length;
+    if (length == 0) {
         return copiedQueue;
     }
+    
+    Entry[] memory newHeap = new Entry[](length);
+    
+    assembly {
+        // Get array slot (self.heap array location)
+        mstore(0x00, self.slot) // slot of Queue struct
+        let heapArraySlot := keccak256(0x00, 0x20) // slot of heap array
+        
+        // Get pointer to destination memory array data
+        let destPtr := add(newHeap, 0x20)
+        
+        for { let i := 0 } lt(i, length) { i := add(i, 1) } {
+            // Each Entry struct takes 2 slots in storage
+            let entrySlot := add(heapArraySlot, mul(i, 2))
+            
+            // Each Entry takes 64 bytes in memory
+            let destEntryPtr := add(destPtr, mul(i, 0x40))
+            
+            // Copy priority (first slot of Entry)
+            mstore(destEntryPtr, sload(entrySlot))
+            
+            // Copy address (second slot of Entry)
+            mstore(add(destEntryPtr, 0x20), sload(add(entrySlot, 1)))
+        }
+    }
+    
+    copiedQueue.heap = newHeap;
+    return copiedQueue;
+}
 }
