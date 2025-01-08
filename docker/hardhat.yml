@@ -1,0 +1,12 @@
+version: "3"
+
+services:
+  hardhat:
+    image: "ethereumoptimism/hardhat-node:latest"
+    container_name: HardHat
+    # command: tail -f /dev/null
+    restart: unless-stopped
+    ports:
+      - 8545:8545
+    volumes:
+      - ./hardhat.config.js:/hardhat/hardhat.config.js 

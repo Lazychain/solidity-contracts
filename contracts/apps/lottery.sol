@@ -5,7 +5,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IFairyringContract } from "../../lib/FairyringContract/src/IFairyringContract.sol";
 // import { IERC721A } from "erc721a/contracts/IERC721A.sol";
 import { Lazy1155 } from "./lazy1155.sol";
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 // import { console } from "forge-std/console.sol";
 import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
@@ -96,6 +96,11 @@ contract NFTLottery is Ownable, ERC1155Holder {
         fairyringContract = IFairyringContract(_fairyringContract);
         emit LotteryInitialized(_fairyringContract, _fee);
         // console.log("lottery ctro finish");
+    }
+
+    function test(uint256 pepe) external payable returns (bool) {
+        console.log("[%s]",pepe);
+        return true;
     }
 
     // EXECUTE:OWNER:Open or close campaign

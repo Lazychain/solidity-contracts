@@ -8,7 +8,7 @@
 // // import "@typechain/hardhat"
 // // import "hardhat-gas-reporter"
 // // import "solidity-coverage"
-// // 
+// //
 // // import "@nomicfoundation/hardhat-toolbox"
 
 // // import "hardhat-deploy"
@@ -95,11 +95,14 @@ const config: HardhatUserConfig = {
 	},
 	networks: {
 		hardhat: {
-			chainId: 1337,
+			mining: {
+				auto: false,
+				interval: 0,
+			},
 		},
-		lazy: {
-			url: "http://127.0.0.1:8545",
-		},
+		// lazy: {
+		// 	url: "http://127.0.0.1:8545",
+		// },
 	},
 }
 

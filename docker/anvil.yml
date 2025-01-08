@@ -1,0 +1,13 @@
+services:
+  anvil:
+    image: pepe
+    build:
+      dockerfile: Dockerfile
+    container_name: anvil
+    restart: unless-stopped
+    env_file: ".env"
+    command: 'anvil -m "$ANVIL_MNEMONIC" --host 0.0.0.0 --port 8545  --rpc-url "http:0.0.0.0:8545" --block-base-fee-per-gas 0 --gas-price 0'
+    environment:
+      ANVIL_MNEMONIC: ${ANVIL_MNEMONIC}
+    ports:
+      - 9545:8545
