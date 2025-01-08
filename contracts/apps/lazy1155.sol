@@ -86,6 +86,7 @@ contract Lazy1155 is ILazy1155, ERC1155, Ownable, ERC1155Pausable, ERC1155Burnab
         _mint(to, id, amount, data);
     }
 
+
     /**
      * @dev bacthed version of mint.
      *
@@ -148,6 +149,7 @@ contract Lazy1155 is ILazy1155, ERC1155, Ownable, ERC1155Pausable, ERC1155Burnab
     function balanceOf(address account, uint256 id) public view override(ILazy1155, ERC1155) returns (uint256) {
         return super.balanceOf(account, id);
     }
+
     function isApprovedForAll(address owner, address operator) public view override(ILazy1155, ERC1155) returns (bool) {
         return super.isApprovedForAll(owner, operator);
     }
