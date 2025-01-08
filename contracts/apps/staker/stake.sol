@@ -5,6 +5,7 @@ import { Lazy721 } from "../lazy721.sol";
 import { Lazy721A } from "../lazy721a.sol";
 import { Lazy1155 } from "../lazy1155.sol";
 import { ILazy1155 } from "../../interfaces/token/ILazy1155.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { Ownable } from "../../../node_modules/@openzeppelin/contracts/access/Ownable.sol";
 import { IERC721 } from "../../../node_modules/@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC1155 } from "../../../node_modules/@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
@@ -53,8 +54,10 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @dev Enum to identify different token standards
      */
     enum TokenType {
-        ERC721,
-        ERC1155
+        UNSUPPORTED,
+        LAZY721,
+        LAZY721A,
+        LAZY1155
     }
     enum StakingStatus {
         STAKED,
@@ -112,14 +115,19 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @param tokenAddress Address of the token contract
      * @param tokenId ID of the token to stake
      * @param amount Amount of tokens to stake (1 for ERC721)
-     * @param tokenType Type of token being staked (ERC721 or ERC1155)
      */
-    function _stake(address tokenAddress, uint256 tokenId, uint256 amount, TokenType tokenType) internal {
+    function _stake(address tokenAddress, uint256 tokenId, uint256 amount) internal {
         if (msg.value != stakingFee) {
             revert NFTStaking__InsufficientStakingFee();
         }
 
-        bool isERC1155 = tokenType == TokenType.ERC1155;
+        TokenType tokenType = detectNFTType(tokenAddress);
+        if (tokenType == TokenType.UNSUPPORTED) {
+            revert NFTStaking__UnsupportedNFTType();
+        }
+
+        bool isERC1155 = tokenType == TokenType.LAZY1155;
+        uint256 finalAmount = isERC1155 ? amount : 1;
 
         if (!verifyNFTEligibility(tokenAddress, tokenId, isERC1155)) {
             revert NFTStaking__NFTNotEligible();
@@ -137,25 +145,18 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
             revert NFTStaking__MaxStakingLimitReached();
         }
 
-        // Interface compliance check
-        if (tokenType == TokenType.ERC721) {
-            if (!IERC721(tokenAddress).supportsInterface(type(IERC721).interfaceId)) {
-                revert NFTStaking__WrongDataFilled();
+        if (tokenType == TokenType.LAZY1155) {
+            Lazy1155 nft = Lazy1155(tokenAddress);
+            if (!nft.tokenExists(tokenId)) {
+                revert NFTStaking__NFTNotEligible();
             }
-        } else {
-            if (!IERC1155(tokenAddress).supportsInterface(type(IERC1155).interfaceId)) {
-                revert NFTStaking__WrongDataFilled();
-            }
-        }
-
-        // Transfer tokens
-        // nonreentrant is for this part
-        if (tokenType == TokenType.ERC721) {
-            IERC721 nft = IERC721(tokenAddress);
-            nft.safeTransferFrom(msg.sender, address(this), tokenId, "");
-        } else {
-            IERC1155 nft = IERC1155(tokenAddress);
             nft.safeTransferFrom(msg.sender, address(this), tokenId, amount, "");
+        } else if (tokenType == TokenType.LAZY721) {
+            Lazy721 nft = Lazy721(tokenAddress);
+            nft.safeTransferFrom(msg.sender, address(this), tokenId);
+        } else {
+            Lazy721A nft = Lazy721A(tokenAddress);
+            nft.safeTransferFrom(msg.sender, address(this), tokenId);
         }
 
         stakingCount[msg.sender]++;
@@ -165,16 +166,16 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
             StakeInfo({
                 tokenAddress: tokenAddress,
                 tokenId: tokenId,
-                amount: amount,
+                amount: finalAmount,
                 startBlock: block.number,
                 lastRewardBlock: block.number,
-                isERC1155: tokenType == TokenType.ERC1155,
+                isERC1155: isERC1155,
                 status: StakingStatus.STAKED,
                 accumulatedRewards: 0
             })
         );
 
-        emit Staked(msg.sender, tokenAddress, tokenId, amount);
+        emit Staked(msg.sender, tokenAddress, tokenId, finalAmount);
     }
 
     /**
@@ -184,7 +185,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
      * @dev Ensures the token is ERC721 compliant and caller is the owner
      */
     function stakeERC721(address tokenAddress, uint256 tokenId) external payable nonReentrant {
-        _stake(tokenAddress, tokenId, 1, TokenType.ERC721);
+        _stake(tokenAddress, tokenId, 1);
     }
 
     /**
@@ -198,7 +199,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         if (amount < 0) {
             revert NFTStaking__WrongDataFilled();
         }
-        _stake(tokenAddress, tokenId, amount, TokenType.ERC1155);
+        _stake(tokenAddress, tokenId, amount);
     }
 
     /**
@@ -482,5 +483,30 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 endBlock = stake.startBlock + stakingPeriodInBlocks;
         if (block.number >= endBlock) return 0;
         return endBlock - block.number;
+    }
+
+    /**
+     * @notice Detects if the contract is one of our Lazy NFT types
+     * @param tokenAddress The address of the NFT contract to check
+     * @return nftType The specific Lazy NFT type
+     * @dev Checks specifically for Lazy721, Lazy721A, and Lazy1155
+     */
+    function detectNFTType(address tokenAddress) public view returns (TokenType) {
+        // Try Lazy1155
+        try ILazy1155(tokenAddress).tokenExists(0) returns (bool) {
+            return TokenType.LAZY1155;
+        } catch {}
+
+        // Try Lazy721
+        try Lazy721(tokenAddress).supportsInterface(0x80ac58cd) returns (bool supported) {
+            if (supported) return TokenType.LAZY721;
+        } catch {}
+
+        // Try Lazy721A
+        try Lazy721A(tokenAddress).supportsInterface(0x80ac58cd) returns (bool supported) {
+            if (supported) return TokenType.LAZY721A;
+        } catch {}
+
+        return TokenType.UNSUPPORTED;
     }
 }
