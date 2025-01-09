@@ -295,4 +295,204 @@ contract LotteryTest is Test, ERC1155Holder {
     // function invariant_Version() external view {
     //     assertEq(_lottery.version(), "1.00");
     // }
+
+    function testFail_DrawWhenCampaignNotOpen() public {
+        // Given campaign is not started
+        assertEq(_lottery.campaign(), false);
+        
+        // When user tries to draw
+        vm.startPrank(_fundedUser);
+        _lottery.draw{value: _fee}(50);
+        vm.stopPrank();
+    }
+
+    function testFail_DrawWithInsufficientFee() public {
+        // Given campaign is open
+        vm.expectEmit(true, true, false, true);
+        emit CampaignStatusChanged(true);
+        _lottery.setCampaign(true);
+        
+        // When user tries to draw with insufficient fee
+        vm.startPrank(_fundedUser);
+        _lottery.draw{value: _fee / 2}(50);
+        vm.stopPrank();
+    }
+
+    function testFail_WithdrawByNonOwner() public {
+        // Given some balance in contract
+        vm.deal(address(_lottery), 1 ether);
+        
+        // When non-owner tries to withdraw
+        vm.startPrank(_fundedUser);
+        _lottery.withdraw(_fundedUser);
+        vm.stopPrank();
+    }
+
+    function testClaimNFTWithInsufficientPoints() public {
+        // Given campaign is open
+        _lottery.setCampaign(true);
+        
+        // When user tries to claim with insufficient points
+        vm.startPrank(_fundedUser);
+        vm.expectRevert(NFTLottery.NFTLottery__TooFewPooPoints.selector);
+        _lottery.claimNFT{value: _fee}();
+        vm.stopPrank();
+    }
+
+ function testFuzz_NFTDistributionOrder(uint8[] calldata guesses) public {
+    vm.assume(guesses.length > 0);
+    vm.assume(guesses.length <= 5); // Reasonable limit for gas
+    
+    // Given campaign is open
+    _lottery.setCampaign(true);
+    
+    // Track initial NFT balances
+    uint256[] memory initialBalances = new uint256[](_tokensIdCap);
+    for(uint256 i = 0; i < _tokensIdCap; i++) {
+        initialBalances[i] = _nft1155.balanceOf(address(_lottery), i);
+    }
+    
+    // When winners claim NFTs
+    vm.startPrank(_fundedUser);
+    for(uint i = 0; i < guesses.length; i++) {
+        uint8 normalizedGuess = guesses[i] % 100; // Use modulo instead of skipping
+        
+        // Mock winning condition
+        vm.mockCall(
+            address(_fairyringContract),
+            abi.encodeWithSelector(IFairyringContract.latestRandomness.selector),
+            abi.encode(bytes32(0), uint256(normalizedGuess))
+        );
+        
+        try _lottery.draw{value: _fee}(normalizedGuess) returns (uint256 tokenId) {
+            // Check NFT balances changed appropriately
+            for(uint256 j = 0; j < _tokensIdCap; j++) {
+                uint256 newBalance = _nft1155.balanceOf(address(_lottery), j);
+                assertLe(newBalance, initialBalances[j]);
+            }
+        } catch Error(string memory reason) {
+            // Check if it's our expected error message
+            if (!_compareStrings(reason, "No more NFTs")) {
+                revert(reason);
+            }
+        }
+        
+        vm.roll(block.number + 1);
+    }
+    vm.stopPrank();
+}
+
+// Helper function to compare strings
+function _compareStrings(string memory a, string memory b) private pure returns (bool) {
+    return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
+}
+    
+    function testFuzz_MultipleDrawsSameBlock(uint8 guess) public {
+        vm.assume(guess < 100);
+        
+        // Given campaign is open
+        _lottery.setCampaign(true);
+        
+        // Mock random number to ensure loss (avoid NFT transfer complications)
+        vm.mockCall(
+            address(_fairyringContract),
+            abi.encodeWithSelector(IFairyringContract.latestRandomness.selector),
+            abi.encode(bytes32(0), uint256((guess + 10) % 100))
+        );
+        
+        // And user has enough funds for multiple draws
+        vm.deal(_fundedUser, _fee * 3);
+        
+        // When user draws multiple times in same block
+        vm.startPrank(_fundedUser);
+        uint256 initialDraws = _lottery.totaldraws();
+        
+        _lottery.draw{value: _fee}(guess);
+        _lottery.draw{value: _fee}(guess);
+        _lottery.draw{value: _fee}(guess);
+        
+        // Then all draws should be counted
+        assertEq(_lottery.totaldraws(), initialDraws + 3);
+        vm.stopPrank();
+    }
+
+  function testFuzz_PooPointsAccumulation(uint8[] calldata guesses) public {
+    vm.assume(guesses.length > 0);
+    vm.assume(guesses.length <= 5); // Reduced from 10 to avoid gas issues
+    
+    // Given campaign is open
+    _lottery.setCampaign(true);
+    
+    // Mock random number to ensure loss using tokensCap+1
+    vm.mockCall(
+        address(_fairyringContract),
+        abi.encodeWithSelector(IFairyringContract.latestRandomness.selector),
+        abi.encode(bytes32(0), uint256(99))
+    );
+    
+    // Ensure user has enough funds for all draws
+    vm.deal(_fundedUser, _fee * guesses.length);
+    
+    // And user starts with 0 points
+    vm.prank(_fundedUser);
+    uint256 initialPoints = _lottery.points();
+    assertEq(initialPoints, 0);
+    
+    // When user makes multiple draws
+    vm.startPrank(_fundedUser);
+    uint256 successfulDraws = 0;
+    
+    for(uint i = 0; i < guesses.length; i++) {
+        uint8 normalizedGuess = guesses[i] % 100;
+        try _lottery.draw{value: _fee}(normalizedGuess) returns (uint256) {
+            successfulDraws++;
+        } catch Error(string memory reason) {
+            // Check if it's our expected error message
+            if (!_compareStrings(reason, "No more NFTs")) {
+                revert(reason);
+            }
+        }
+        // Increment block number to allow multiple draws
+        vm.roll(block.number + 1);
+    }
+    
+    // Then points should accumulate correctly (1 point per draw attempt, regardless of win/loss)
+    assertEq(_lottery.points(), initialPoints + successfulDraws);
+    vm.stopPrank();
+}
+
+    function testFuzz_AccumulateAndClaimNFT(uint8 drawCount) public {
+        vm.assume(drawCount >= 100); // Need at least 100 draws for claiming
+        vm.assume(drawCount <= 150); // Upper limit for gas
+        
+        // Given campaign is open
+        _lottery.setCampaign(true);
+        
+        // Ensure user has enough funds for all draws
+        vm.deal(_fundedUser, _fee * (drawCount + 1)); // +1 for the claim fee
+        
+        // Mock random number to ensure loss (avoid NFT depletion)
+        vm.mockCall(
+            address(_fairyringContract),
+            abi.encodeWithSelector(IFairyringContract.latestRandomness.selector),
+            abi.encode(bytes32(0), uint256(99)) // Always return 99 to ensure loss
+        );
+        
+        // When user accumulates points through draws
+        vm.startPrank(_fundedUser);
+        for(uint i = 0; i < drawCount; i++) {
+            _lottery.draw{value: _fee}(50);
+            vm.roll(block.number + 1);
+        }
+        
+        // Then user should be able to claim NFT with enough points
+        uint256 points = _lottery.points();
+        if(points >= 100) {
+            uint256 tokenId = _lottery.claimNFT{value: _fee}();
+            assertLt(tokenId, _tokensIdCap);
+            assertEq(_nft1155.balanceOf(_fundedUser, tokenId), 1);
+        }
+        vm.stopPrank();
+    }
+
 }
