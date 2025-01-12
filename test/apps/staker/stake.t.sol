@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import { Lazy721 } from "../../../contracts/apps/lazy721.sol";
 import { Lazy721A } from "../../../contracts/apps/lazy721a.sol";
 import { Lazy1155 } from "../../../contracts/apps/lazy1155.sol";
+import { MockFailingERC721 } from "../mocks/MockFailingERC721.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { NFTStaking } from "../../../contracts/apps/staker/stake.sol";
 
@@ -419,6 +420,243 @@ contract NFTStakingTest is Test {
 
         vm.expectRevert(NFTStaking.NFTStaking__InsufficientStakingFee.selector);
         staking.stakeERC721{ value: 0 }(address(lazy721), 0);
+        vm.stopPrank();
+    }
+
+    function test_StakeAndUnstakeMultipleTimesERC721() public {
+        vm.startPrank(owner);
+        lazy721.safeMint(alice);
+        vm.stopPrank();
+
+        vm.startPrank(alice);
+        lazy721.approve(address(staking), 0);
+
+        // First stake
+        staking.stakeERC721{ value: STAKING_FEE }(address(lazy721), 0);
+
+        // Wait and unstake
+        vm.roll(block.number + INITIAL_STAKING_PERIOD + 1);
+        staking.unStake{ value: UNSTAKING_FEE }(0);
+
+        // Try to unstake again (should fail)
+        vm.expectRevert(NFTStaking.NFTStaking__AlreadyUnstaked.selector);
+        staking.unStake{ value: UNSTAKING_FEE }(0);
+        vm.stopPrank();
+    }
+
+    // function test_NFTEligibilityChecks() public {
+    //     // Create a mock failing ERC721
+    //     MockFailingERC721 fakeNFT = new MockFailingERC721();
+
+    //     vm.startPrank(alice);
+
+    //     // Try to stake with fake NFT that returns empty tokenURI
+    //     vm.expectRevert(NFTStaking.NFTStaking__NFTNotEligible.selector);
+    //     staking.stakeERC721{ value: STAKING_FEE }(address(fakeNFT), 0);
+
+    //     // Try with non-existent token in our real NFT contracts
+    //     vm.expectRevert(NFTStaking.NFTStaking__NFTNotEligible.selector);
+    //     staking.stakeERC721{ value: STAKING_FEE }(address(lazy721), 999);
+
+    //     // Try with ERC1155 using invalid token ID
+    //     vm.expectRevert(NFTStaking.NFTStaking__NFTNotEligible.selector);
+    //     staking.stakeERC1155{ value: STAKING_FEE }(address(lazy1155), 999, 1);
+
+    //     // Try staking with zero address
+    //     vm.expectRevert(NFTStaking.NFTStaking__WrongDataFilled.selector);
+    //     staking.stakeERC721{ value: STAKING_FEE }(address(0), 0);
+
+    //     // Try staking with wrong fee
+    //     vm.expectRevert(NFTStaking.NFTStaking__InsufficientStakingFee.selector);
+    //     staking.stakeERC721{ value: STAKING_FEE - 1 }(address(lazy721), 0);
+
+    //     vm.stopPrank();
+    // }
+
+    function test_BatchStakingAndUnstakingERC1155() public {
+        uint256[] memory ids = new uint256[](3);
+        uint256[] memory amounts = new uint256[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            ids[i] = i + 1;
+            amounts[i] = 5;
+        }
+
+        // Mint batch
+        vm.startPrank(owner);
+        lazy1155.mintBatch(alice, ids, amounts, "");
+        vm.stopPrank();
+
+        // Stake each token
+        vm.startPrank(alice);
+        lazy1155.setApprovalForAll(address(staking), true);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            staking.stakeERC1155{ value: STAKING_FEE }(address(lazy1155), ids[i], amounts[i]);
+        }
+
+        // Check stakes
+        NFTStaking.StakeInfo[] memory stakes = staking.getStakes(alice);
+        assertEq(stakes.length, 3);
+
+        // Advance time and unstake all
+        vm.roll(block.number + INITIAL_STAKING_PERIOD + 1);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            staking.unStake{ value: UNSTAKING_FEE }(i);
+        }
+        vm.stopPrank();
+    }
+
+    function test_RewardsCalculationEdgeCases() public {
+        vm.startPrank(owner);
+        lazy721.safeMint(alice);
+        lazy721.safeMint(bob);
+        vm.stopPrank();
+
+        // Stake with Alice
+        vm.startPrank(alice);
+        lazy721.approve(address(staking), 0);
+        staking.stakeERC721{ value: STAKING_FEE }(address(lazy721), 0);
+
+        // Check zero rewards at start
+        assertEq(staking.getPendingRewards(alice, 0), 0);
+
+        // Advance one block
+        vm.roll(block.number + 1);
+        uint256 oneBlockReward = staking.getPendingRewards(alice, 0);
+
+        // Advance multiple blocks
+        vm.roll(block.number + 10);
+        uint256 multiBlockReward = staking.getPendingRewards(alice, 0);
+
+        assertTrue(multiBlockReward > oneBlockReward);
+        vm.stopPrank();
+    }
+
+    function test_StakingFeesEdgeCases() public {
+        vm.startPrank(owner);
+        lazy721.safeMint(alice);
+
+        // Test fee updates
+        uint256 newStakingFee = 0.2 ether;
+        uint256 newUnstakingFee = 0.1 ether;
+
+        staking.setStakingFee(newStakingFee);
+        staking.setUnstakingFee(newUnstakingFee);
+
+        vm.stopPrank();
+
+        vm.startPrank(alice);
+        lazy721.approve(address(staking), 0);
+
+        // Try with old fee (should fail)
+        vm.expectRevert(NFTStaking.NFTStaking__InsufficientStakingFee.selector);
+        staking.stakeERC721{ value: STAKING_FEE }(address(lazy721), 0);
+
+        // Stake with new fee
+        staking.stakeERC721{ value: newStakingFee }(address(lazy721), 0);
+
+        // Advance time
+        vm.roll(block.number + INITIAL_STAKING_PERIOD + 1);
+
+        // Try unstake with old fee (should fail)
+        vm.expectRevert(NFTStaking.NFTStaking__InsufficientUnstakingFee.selector);
+        staking.unStake{ value: UNSTAKING_FEE }(0);
+
+        // Unstake with new fee
+        staking.unStake{ value: newUnstakingFee }(0);
+        vm.stopPrank();
+    }
+
+    function test_StakingPeriodUpdates() public {
+        vm.startPrank(owner);
+        lazy721.safeMint(alice);
+
+        // Update staking period
+        uint256 newPeriod = INITIAL_STAKING_PERIOD * 2;
+        staking.setStakingPeriod(newPeriod);
+
+        vm.stopPrank();
+
+        vm.startPrank(alice);
+        lazy721.approve(address(staking), 0);
+        staking.stakeERC721{ value: STAKING_FEE }(address(lazy721), 0);
+
+        // Try unstake at old period (should fail)
+        vm.roll(block.number + INITIAL_STAKING_PERIOD + 1);
+        vm.expectRevert(NFTStaking.NFTStaking__StakingPeriodNotEnded.selector);
+        staking.unStake{ value: UNSTAKING_FEE }(0);
+
+        // Unstake at new period
+        vm.roll(block.number + newPeriod);
+        staking.unStake{ value: UNSTAKING_FEE }(0);
+        vm.stopPrank();
+    }
+
+    function test_InvalidStakingPeriod() public {
+        vm.startPrank(owner);
+        vm.expectRevert(NFTStaking.NFTStaking__InvalidStakingPeriod.selector);
+        staking.setStakingPeriod(0);
+        vm.stopPrank();
+    }
+
+    function test_MultiUserStakingInteractions() public {
+        // Setup NFTs for both users
+        vm.startPrank(owner);
+        lazy721.safeMint(alice);
+        lazy721.safeMint(bob);
+        lazy1155.mint(alice, 1, 10, "");
+        lazy1155.mint(bob, 1, 10, "");
+        vm.stopPrank();
+
+        // Alice stakes
+        vm.startPrank(alice);
+        lazy721.approve(address(staking), 0);
+        lazy1155.setApprovalForAll(address(staking), true);
+        staking.stakeERC721{ value: STAKING_FEE }(address(lazy721), 0);
+        staking.stakeERC1155{ value: STAKING_FEE }(address(lazy1155), 1, 5);
+        vm.stopPrank();
+
+        // Bob stakes
+        vm.startPrank(bob);
+        lazy721.approve(address(staking), 1);
+        lazy1155.setApprovalForAll(address(staking), true);
+        staking.stakeERC721{ value: STAKING_FEE }(address(lazy721), 1);
+        staking.stakeERC1155{ value: STAKING_FEE }(address(lazy1155), 1, 5);
+        vm.stopPrank();
+
+        // Verify stakes
+        NFTStaking.StakeInfo[] memory aliceStakes = staking.getStakes(alice);
+        NFTStaking.StakeInfo[] memory bobStakes = staking.getStakes(bob);
+
+        assertEq(aliceStakes.length, 2);
+        assertEq(bobStakes.length, 2);
+
+        // Advance time and check rewards
+        vm.roll(block.number + 50);
+
+        uint256 aliceRewards = staking.getPendingRewards(alice, 0);
+        uint256 bobRewards = staking.getPendingRewards(bob, 0);
+
+        // Should have same rewards as staked at same time
+        assertEq(aliceRewards, bobRewards);
+    }
+
+    function test_WhitelistingFunctionality() public {
+        address newCollection = makeAddr("newCollection");
+
+        vm.startPrank(owner);
+        staking.setCollectionWhitelist(newCollection, true);
+        assertTrue(staking.whitelistedCollections(newCollection));
+
+        staking.setCollectionWhitelist(newCollection, false);
+        assertFalse(staking.whitelistedCollections(newCollection));
+        vm.stopPrank();
+
+        // Non-owner should not be able to whitelist
+        vm.startPrank(alice);
+        vm.expectRevert();
+        staking.setCollectionWhitelist(newCollection, true);
         vm.stopPrank();
     }
 
