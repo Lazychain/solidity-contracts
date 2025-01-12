@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
+import { ILazy1155 } from "../../interfaces/token/ILazy1155.sol";
 import { INFTLotteryFactory, INFTHandler } from "./lotteryinterface.sol";
 import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import { ILazy1155 } from "../../interfaces/token/ILazy1155.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
+
 // import "hardhat/console.sol";
 
 contract ERC721Handler is INFTHandler {
@@ -38,7 +39,7 @@ contract ERC721Handler is INFTHandler {
         return nftContract.isApprovedForAll(owner, operator);
     }
 
-    function tokenExists(uint256 ) public pure returns (bool) {
+    function tokenExists(uint256) public pure returns (bool) {
         // console.log("ERC721 tokenExists.");
         // revert LazyERC721__TokenIdDoesntExist();
         return true; // TODO: here we need to check for token id
