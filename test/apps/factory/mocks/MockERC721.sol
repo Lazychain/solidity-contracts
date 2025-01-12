@@ -35,6 +35,7 @@ contract MockERC721 is IERC721Enumerable {
     }
 
     function transferFrom(address from, address to, uint256 tokenId) external override {
+        require(to != address(0), "ERC721: transfer to the zero address");
         require(_owners[tokenId] == from, "ERC721: transfer from incorrect owner");
 
         // Check if msg.sender is approved or owner
