@@ -130,4 +130,134 @@ contract Lazy1155Test is StdCheats, Test, ERC1155Holder {
 
         assertEq(totalNewBalance, newNft.totalSupply());
     }
+
+    function testPauseAndUnpause() public {
+        lnft.pause();
+        assertTrue(lnft.paused());
+        
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        lnft.mint(user1, 0, 1, "");
+        
+        lnft.unpause();
+        assertFalse(lnft.paused());
+        
+        // Should work after unpause
+        lnft.mint(user1, 0, 1, "");
+        assertEq(lnft.balanceOf(user1, 0), 1);
+    }
+
+    function testSetURI() public {
+        string memory newUri = "https://newdomain.com/token/{id}";
+        lnft.setURI(newUri);
+        
+        lnft.mint(user1, 1, 1, "");
+        assertEq(lnft.tokenURI(user1, 1), "https://newdomain.com/token/1");
+    }
+
+    function testBurnTokens() public {
+        // Reduced amount to stay within cap
+        lnft.mint(user1, 0, 2, "");
+        assertEq(lnft.balanceOf(user1, 0), 2);
+        
+        vm.prank(user1);
+        lnft.burn(user1, 0, 1);
+        assertEq(lnft.balanceOf(user1, 0), 1);
+        
+        // Test batch burn
+        uint256[] memory ids = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        ids[0] = 0;
+        amounts[0] = 1;
+        
+        vm.prank(user1);
+        lnft.burnBatch(user1, ids, amounts);
+        assertEq(lnft.balanceOf(user1, 0), 0);
+        assertFalse(lnft.tokenExists(0));
+    }
+
+    function testApprovalAndTransfer() public {
+        lnft.mint(user1, 0, 2, "");
+        
+        vm.prank(user1);
+        lnft.setApprovalForAll(user2, true);
+        assertTrue(lnft.isApprovedForAll(user1, user2));
+        
+        // Transfer using approved operator
+        vm.prank(user2);
+        lnft.safeTransferFrom(user1, address(this), 0, 1, "");
+        
+        assertEq(lnft.balanceOf(user1, 0), 1);
+        assertEq(lnft.balanceOf(address(this), 0), 1);
+    }
+
+    function testBatchTransferAndBalance() public {
+        // Reduced amounts to stay within cap
+        uint256[] memory ids = new uint256[](2);
+        uint256[] memory amounts = new uint256[](2);
+        
+        ids[0] = 0;
+        ids[1] = 1;
+        amounts[0] = 1;
+        amounts[1] = 1;
+        
+        lnft.mintBatch(user1, ids, amounts, "");
+        
+        vm.startPrank(user1);
+        uint256[] memory transferAmounts = new uint256[](2);
+        transferAmounts[0] = 1;
+        transferAmounts[1] = 1;
+        
+        lnft.safeBatchTransferFrom(user1, user2, ids, transferAmounts, "");
+        vm.stopPrank();
+        
+        assertEq(lnft.balanceOf(user1, 0), 0);
+        assertEq(lnft.balanceOf(user1, 1), 0);
+        assertEq(lnft.balanceOf(user2, 0), 1);
+        assertEq(lnft.balanceOf(user2, 1), 1);
+    }
+
+    function testRevertInvalidBatchTransfer() public {
+        uint256[] memory ids = new uint256[](2);
+        uint256[] memory amounts = new uint256[](1); // Mismatched arrays
+        
+        vm.expectRevert(abi.encodeWithSignature("ERC1155InvalidArrayLength(uint256,uint256)", 2, 1));
+        lnft.mintBatch(user1, ids, amounts, "");
+    }
+
+    function testRevertUnauthorizedTransfer() public {
+        lnft.mint(user1, 0, 1, "");
+        
+        vm.prank(user2);
+        vm.expectRevert(abi.encodeWithSignature(
+            "ERC1155MissingApprovalForAll(address,address)",
+            user2,
+            user1
+        ));
+        lnft.safeTransferFrom(user1, user2, 0, 1, "");
+    }
+
+    function testZeroAddressTransfer() public {
+        lnft.mint(user1, 0, 1, "");
+        
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature(
+            "ERC1155InvalidReceiver(address)",
+            address(0)
+        ));
+        lnft.safeTransferFrom(user1, address(0), 0, 1, "");
+    }
+
+    function testTransferExceedingBalance() public {
+        lnft.mint(user1, 0, 1, "");
+        
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature(
+            "ERC1155InsufficientBalance(address,uint256,uint256,uint256)",
+            user1,
+            1,
+            2,
+            0
+        ));
+        lnft.safeTransferFrom(user1, user2, 0, 2, "");
+    }
 }

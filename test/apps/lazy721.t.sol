@@ -97,4 +97,128 @@ contract Lazy721Test is StdCheats, Test, ERC721Holder {
         }
         assertEq(newNft.totalSupply(), quantity);
     }
+
+    function testPauseState() public {
+        lnft.pause();
+        assertTrue(lnft.paused());
+        
+        lnft.unpause();
+        assertFalse(lnft.paused());
+    }
+
+    // Test minting while paused
+    function testPausedMint() public {
+        lnft.pause();
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        lnft.safeMint(user1);
+    }
+
+    // Test transfers while paused
+    function testPausedTransfer() public {
+        lnft.safeMint(user1);
+        lnft.pause();
+        
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        lnft.transferFrom(user1, user2, 0);
+    }
+
+    function testBurnToken() public {
+        lnft.safeMint(user1);
+        
+        vm.prank(user1);
+        lnft.burn(0);
+        
+        assertEq(lnft.totalSupply(), 0);
+        assertEq(lnft.balanceOf(user1), 0);
+        
+        // Update the error expectation to match OpenZeppelin's custom error
+        vm.expectRevert(abi.encodeWithSignature("ERC721NonexistentToken(uint256)", 0));
+        lnft.ownerOf(0);
+    }
+
+    function testApproveAndTransfer() public {
+        lnft.safeMint(user1);
+        
+        vm.prank(user1);
+        lnft.approve(user2, 0);
+        assertEq(lnft.getApproved(0), user2);
+        
+        vm.prank(user2);
+        lnft.transferFrom(user1, address(this), 0);
+        assertEq(lnft.ownerOf(0), address(this));
+    }
+
+    function testApprovalClearsAfterTransfer() public {
+        lnft.safeMint(user1);
+        
+        vm.prank(user1);
+        lnft.approve(user2, 0);
+        
+        vm.prank(user2);
+        lnft.transferFrom(user1, address(this), 0);
+        
+        assertEq(lnft.getApproved(0), address(0));
+    }
+
+    function testSetApprovalForAll() public {
+        lnft.safeMint(user1);
+        
+        vm.prank(user1);
+        lnft.setApprovalForAll(user2, true);
+        assertTrue(lnft.isApprovedForAll(user1, user2));
+    }
+
+    function testOperatorTransfer() public {
+        lnft.safeMint(user1);
+        
+        vm.prank(user1);
+        lnft.setApprovalForAll(user2, true);
+        
+        vm.prank(user2);
+        lnft.transferFrom(user1, address(this), 0);
+        assertEq(lnft.ownerOf(0), address(this));
+    }
+
+    function testEnumerableOwnerByIndex() public {
+        lnft.safeMint(user1);  // ID 0
+        lnft.safeMint(user1);  // ID 1
+        
+        assertEq(lnft.tokenOfOwnerByIndex(user1, 0), 0);
+        assertEq(lnft.tokenOfOwnerByIndex(user1, 1), 1);
+        
+        vm.expectRevert(abi.encodeWithSignature(
+            "ERC721OutOfBoundsIndex(address,uint256)",
+            user1,
+            2
+        ));
+        lnft.tokenOfOwnerByIndex(user1, 2);
+    }
+
+    function testEnumerableTokenByIndex() public {
+        lnft.safeMint(user1);
+        lnft.safeMint(user2);
+        
+        assertEq(lnft.tokenByIndex(0), 0);
+        assertEq(lnft.tokenByIndex(1), 1);
+        
+        vm.expectRevert(abi.encodeWithSignature(
+            "ERC721OutOfBoundsIndex(address,uint256)",
+            address(0),
+            2
+        ));
+        lnft.tokenByIndex(2);
+    }
+
+    function testRevertTransferUnauthorized() public {
+        lnft.safeMint(user1);
+        
+        vm.prank(user2);
+        vm.expectRevert(abi.encodeWithSignature(
+            "ERC721InsufficientApproval(address,uint256)",
+            user2,
+            0
+        ));
+        lnft.transferFrom(user1, user2, 0);
+    }
 }
