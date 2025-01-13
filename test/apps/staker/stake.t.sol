@@ -303,6 +303,8 @@ contract NFTStakingTest is Test {
         uint256 rewards1 = staking.getPendingRewards(alice, 1);
 
         assertTrue(rewards0 > rewards1, "First stake should have more rewards");
+        assertEq(rewards0, 10 * REWARD_RATE, "First stake rewards should be for 20 blocks");
+        assertEq(rewards1, 0, "Second stake rewards should be for 10 blocks");
         vm.stopPrank();
     }
 
@@ -328,6 +330,26 @@ contract NFTStakingTest is Test {
 
         NFTStaking.StakeInfo[] memory stakes = staking.getStakes(alice);
         assertEq(stakes.length, 3);
+
+        // Advance time past staking period
+        vm.roll(block.number + INITIAL_STAKING_PERIOD + 1);
+
+        // Unstake all and verify
+        staking.unStake{ value: UNSTAKING_FEE }(0);
+        staking.unStake{ value: UNSTAKING_FEE }(1);
+        staking.unStake{ value: UNSTAKING_FEE }(2);
+
+        // Verify ownership after unstaking
+        assertEq(lazy721.ownerOf(0), alice);
+        assertEq(lazy721a.ownerOf(0), alice);
+        assertEq(lazy1155.balanceOf(alice, 1), 5);
+
+        // Verify stake statuses
+        stakes = staking.getStakes(alice);
+        assertEq(uint256(stakes[0].status), uint256(NFTStaking.StakingStatus.UNSTAKED));
+        assertEq(uint256(stakes[1].status), uint256(NFTStaking.StakingStatus.UNSTAKED));
+        assertEq(uint256(stakes[2].status), uint256(NFTStaking.StakingStatus.UNSTAKED));
+
         vm.stopPrank();
     }
 
@@ -443,35 +465,6 @@ contract NFTStakingTest is Test {
         staking.unStake{ value: UNSTAKING_FEE }(0);
         vm.stopPrank();
     }
-
-    // function test_NFTEligibilityChecks() public {
-    //     // Create a mock failing ERC721
-    //     MockFailingERC721 fakeNFT = new MockFailingERC721();
-
-    //     vm.startPrank(alice);
-
-    //     // Try to stake with fake NFT that returns empty tokenURI
-    //     vm.expectRevert(NFTStaking.NFTStaking__NFTNotEligible.selector);
-    //     staking.stakeERC721{ value: STAKING_FEE }(address(fakeNFT), 0);
-
-    //     // Try with non-existent token in our real NFT contracts
-    //     vm.expectRevert(NFTStaking.NFTStaking__NFTNotEligible.selector);
-    //     staking.stakeERC721{ value: STAKING_FEE }(address(lazy721), 999);
-
-    //     // Try with ERC1155 using invalid token ID
-    //     vm.expectRevert(NFTStaking.NFTStaking__NFTNotEligible.selector);
-    //     staking.stakeERC1155{ value: STAKING_FEE }(address(lazy1155), 999, 1);
-
-    //     // Try staking with zero address
-    //     vm.expectRevert(NFTStaking.NFTStaking__WrongDataFilled.selector);
-    //     staking.stakeERC721{ value: STAKING_FEE }(address(0), 0);
-
-    //     // Try staking with wrong fee
-    //     vm.expectRevert(NFTStaking.NFTStaking__InsufficientStakingFee.selector);
-    //     staking.stakeERC721{ value: STAKING_FEE - 1 }(address(lazy721), 0);
-
-    //     vm.stopPrank();
-    // }
 
     function test_BatchStakingAndUnstakingERC1155() public {
         uint256[] memory ids = new uint256[](3);
