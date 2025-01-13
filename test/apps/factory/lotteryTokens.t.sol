@@ -360,7 +360,7 @@ contract NFTHandlerTest is Test {
     }
 
     function testFuzz_ERC1155Transfer(uint256 amount) public {
-        vm.assume(amount > 0 && amount <= 10); // Max supply is 10
+        vm.assume(amount > 0 && amount <= 5); // Alice max balance
 
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = TOKEN_ID;
