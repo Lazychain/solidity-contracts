@@ -215,7 +215,7 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
             revert NFTStaking__WrongDataFilled();
         }
 
-        StakeInfo memory stake = stakes[msg.sender][index];
+        StakeInfo storage stake = stakes[msg.sender][index];
 
         if (stake.status != StakingStatus.STAKED) {
             revert NFTStaking__AlreadyUnstaked();
@@ -483,6 +483,22 @@ contract NFTStaking is ERC721Holder, ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 endBlock = stake.startBlock + stakingPeriodInBlocks;
         if (block.number >= endBlock) return 0;
         return endBlock - block.number;
+    }
+
+    /**
+     * @notice Gets the total number of active stakes for a specific address
+     * @dev This function only counts stakes that are in STAKED status
+     * @param staker The address to check the stake count for
+     * @return uint256 The number of active stakes for the address
+     */
+    function getStakingCount(address staker) external view returns (uint256) {
+        uint256 activeStakes = 0;
+        for (uint256 i = 0; i < stakes[staker].length; i++) {
+            if (stakes[staker][i].status == StakingStatus.STAKED) {
+                activeStakes++;
+            }
+        }
+        return activeStakes;
     }
 
     /**
