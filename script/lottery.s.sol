@@ -16,7 +16,8 @@ contract Deploy is Script, ERC165, IERC1155Receiver {
         uint256 _NFTLottery_fee, // 0.01 ether
         address _Fairblock_fairyring // Address
     ) external {
-        uint256 deployerPrivateKey = vm.envUint("ANVIL_PK");
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        uint256 quantity = vm.envUint("QUANTITY");
         address deployer = vm.addr(deployerPrivateKey);
 
         console.log("Start Lottery Deploy Script");
@@ -34,7 +35,6 @@ contract Deploy is Script, ERC165, IERC1155Receiver {
         uint256[] memory amounts = new uint256[](_Lazy1155_tokensIdCap);
         uint256 totalEmittion = 0;
 
-        uint256 quantity = 1;
         for (uint256 tokenId = 0; tokenId < _Lazy1155_tokensIdCap; tokenId++) {
             ids[tokenId] = tokenId;
             amounts[tokenId] = quantity;

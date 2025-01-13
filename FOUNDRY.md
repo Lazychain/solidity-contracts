@@ -43,7 +43,7 @@ forge script script/lottery-local.s.sol:Deploy 5 "ipfs://hash/{id}.json" 1000000
 source .env.example
 cd docker && docker-compose -f hardhat.yml up -d
 cd docker && docker-compose -f blockscout.yml up -d
-forge script script/lottery-local.s.sol:Deploy 5 "ipfs://hash/{id}.json" 10000000000000000 --sig 'run(uint256,string,uint256)' --fork-url $ANVIL_CHAIN_RPC --broadcast
+forge script script/lottery-local.s.sol:Deploy 5 "ipfs://bafybeiblder7ccleothvbdfaycwi7wobstz5tyay4qvkmrn6tfkrim7e54/{id}.json" 10000000000000000 --sig 'run(uint256,string,uint256)' --fork-url $ANVIL_CHAIN_RPC --broadcast
 ```
 
 Reset hardhat and block-scout:
@@ -67,10 +67,27 @@ Block explorer: localhost:80
 
 4- Forma testnet
 
-```bash
-forge script script/Lottery:Deploy \
+```shell
+source .env.example
+export WEI=10000000000000000
+export TOKENS_ID_CAP=5
+export IPFS_HASH="ipfs://bafybeiblder7ccleothvbdfaycwi7wobstz5tyay4qvkmrn6tfkrim7e54/{id}.json"
+export FAIRYRING_ADDR="0xcA6cC5c1c4Fc025504273FE61fc0E09100B03D98"
+export ACCOUNT="sketchpad_1"
+export PRIVATE_KEY="..."
+export QUANTITY=1000
+
+forge script script/lottery.s.sol:Deploy \
+  $TOKENS_ID_CAP "$IPFS_HASH" $WEI "$FAIRYRING_ADDR" \
+  --sig 'run(uint256,string,uint256,address)' \
+  --fork-url $FORMA_TESTNET_CHAIN_RPC \
+  --keystore ~/.foundry/keystores/$ACCOUNT
+
+forge script script/lottery.s.sol:Deploy \
+  $TOKENS_ID_CAP "$IPFS_HASH" $WEI "$FAIRYRING_ADDR" \
+  --sig 'run(uint256,string,uint256,address)' \
   --rpc-url $FORMA_TESTNET_CHAIN_RPC \
-  --key-store ~/.foundry/keystores/deployer \
+  --keystore ~/.foundry/keystores/$ACCOUNT \
   --resume \
   --verify \
   --verifier blockscout \
