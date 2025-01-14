@@ -16,14 +16,14 @@ contract Base64Test is Test {
 
     function testEncodeURL() public pure {
         bytes memory data = bytes("http://lazy.fun:8545");
-        string memory encodedURL = Base64.encodeURL(data);
+        string memory encodedURL = Base64.encode(data);
         string memory expected = "aHR0cDovL2xhenkuZnVuOjg1NDU=";
         assertEq(encodedURL, expected, "Base64URL encode failed");
     }
 
     function testDecodePath() public pure {
         bytes memory filePath = bytes("file://pepe.json");
-        string memory encodedfilePath = Base64.encodeURL(filePath);
+        string memory encodedfilePath = Base64.encode(filePath);
         string memory expectedfilePath = "ZmlsZTovL3BlcGUuanNvbg==";
 
         assertEq(encodedfilePath, expectedfilePath, "Base64URL encode for path failed");
@@ -43,8 +43,8 @@ contract Base64Test is Test {
 
     function testEncodeDecodeURL() public pure {
         bytes memory data = bytes("http://lazy.fun:8545");
-        string memory encodedURL = Base64.encodeURL(data);
-        bytes memory decodedURL = Base64.decodeURL(encodedURL);
+        string memory encodedURL = Base64.encode(data);
+        bytes memory decodedURL = Base64.decode(encodedURL);
         assertEq(decodedURL, data, "Round-trip Base64URL encode/decode failed");
     }
 
@@ -57,8 +57,8 @@ contract Base64Test is Test {
 
     function testEmptyEncodeDecodeURL() public pure {
         bytes memory data = bytes("");
-        string memory encodedURL = Base64.encodeURL(data);
-        bytes memory decodedURL = Base64.decodeURL(encodedURL);
+        string memory encodedURL = Base64.encode(data);
+        bytes memory decodedURL = Base64.decode(encodedURL);
         assertEq(decodedURL, data, "Empty Base64URL encode/decode failed");
     }
 
@@ -74,7 +74,7 @@ contract Base64Test is Test {
         Base64.encode(tooLongInput);
 
         vm.expectRevert(Base64.Base64InputTooLong.selector);
-        Base64.encodeURL(tooLongInput);
+        Base64.encode(tooLongInput);
 
         // Test with exactly max length (should pass)
         bytes memory maxLengthInput = new bytes(1_000_000); // MAX_INPUT_LENGTH
@@ -84,7 +84,7 @@ contract Base64Test is Test {
 
         // These should not revert
         Base64.encode(maxLengthInput);
-        Base64.encodeURL(maxLengthInput);
+        Base64.encode(maxLengthInput);
     }
 
     function testInvalidDecodeLength() public {
@@ -95,6 +95,6 @@ contract Base64Test is Test {
         Base64.decode(invalidLength);
 
         vm.expectRevert(Base64.Base64InvalidInputLength.selector);
-        Base64.decodeURL(invalidLength);
+        Base64.decode(invalidLength);
     }
 }
