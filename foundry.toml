@@ -8,9 +8,10 @@ libs = ['node_modules', 'lib']
 allow_paths = ["./node_modules"]
 remappings = [
     'forge-std/=lib/forge-std/src/',
-    '@openzeppelin/=node_modules/@openzeppelin/',
     'erc721a/=node_modules/erc721a/',
-    'FairyringContract/=lib/FairyringContract/src'
+    'FairyringContract/=lib/FairyringContract/src',
+    '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/',
+    '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/'
 ]
 # libraries = [
 #     "contracts/utils/JsonStore.sol:JsonStore:0x00000000000000000000000000000F043a000007",
