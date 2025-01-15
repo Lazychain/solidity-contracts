@@ -4,3 +4,6 @@
 [submodule "lib/FairyringContract"]
 	path = lib/FairyringContract
 	url = https://github.com/Fairblock/FairyringContract
+[submodule "lib/openzeppelin-contracts"]
+	path = lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
