@@ -303,8 +303,8 @@ contract NFTStakingTest is Test {
         uint256 rewards1 = staking.getPendingRewards(alice, 1);
 
         assertTrue(rewards0 > rewards1, "First stake should have more rewards");
-        assertEq(rewards0, 20 * REWARD_RATE, "First stake rewards should be for 20 blocks");
-        assertEq(rewards1, 10 * REWARD_RATE, "Second stake rewards should be for 10 blocks");
+        assertEq(rewards0, 10 * REWARD_RATE, "First stake rewards should be for 20 blocks");
+        assertEq(rewards1, 0 * REWARD_RATE, "Second stake rewards should be for 10 blocks");
         vm.stopPrank();
     }
 

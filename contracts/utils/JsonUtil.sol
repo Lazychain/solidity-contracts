@@ -506,7 +506,7 @@ library JsonUtil {
     /// @param jsonBlob Original JSON string
     /// @return uint256 Token index of the array element, or 0 if not found
     /// @custom:throws JsonUtil__PathNotFound if array index is invalid
-    /// @custom:example path="users[0]" bracketIndex=5 (position of '[')
+    /// @custom:example path="numbers[1]" bracketIndex=7 (position of '[')
     function handleArrayAccess(
         JsonParser.Token[] memory tokens,
         string memory path,
@@ -514,19 +514,58 @@ library JsonUtil {
         string memory jsonBlob
     ) private pure returns (uint256) {
         string memory arrayName = substring(path, 0, bracketIndex);
-        string memory indexStr = substring(path, bracketIndex + 1, bytes(path).length - 1);
+
+        // Find the index of ']'
+        uint256 bracketCloseIndex = bracketIndex;
+        bytes memory pathBytes = bytes(path);
+        for (uint256 i = bracketIndex; i < pathBytes.length; i++) {
+            if (pathBytes[i] == "]") {
+                bracketCloseIndex = i;
+                break;
+            }
+        }
+        require(bracketCloseIndex > bracketIndex, "No closing bracket found");
+
+        // Extract the index string between '[' and ']'
+        string memory indexStr = substring(path, bracketIndex + 1, bracketCloseIndex);
         uint256 targetIndex = strToUint(indexStr);
 
-        // Find array token
+        // Find the ARRAY token corresponding to arrayName
         uint256 arrayToken = findToken(tokens, 0, arrayName, jsonBlob);
         if (arrayToken == 0 || tokens[arrayToken].jsonType != JsonParser.JsonType.ARRAY) return 0;
 
-        // Each object in array takes 5 tokens
-        uint256 pos = arrayToken + 1;  // Start at first object
-        pos += targetIndex * 5;        // Skip to target object
+        // Now, iterate over the elements of the array to find the target index
+        uint256 pos = arrayToken + 1;
+        uint256 currentIndex = 0;
+        uint256 arrayEnd = tokens[arrayToken].end;
 
-        return pos;
+        while (pos < tokens.length && tokens[pos].start < arrayEnd) {
+            if (currentIndex == targetIndex) {
+                return pos;
+            }
+
+            // Determine how to skip the current element
+            if (
+                tokens[pos].jsonType == JsonParser.JsonType.OBJECT || tokens[pos].jsonType == JsonParser.JsonType.ARRAY
+            ) {
+                // Skip the entire object or array by jumping to its end
+                uint256 elementEnd = tokens[pos].end;
+                // Find the token with end == elementEnd
+                while (pos < tokens.length && tokens[pos].end < elementEnd) {
+                    pos++;
+                }
+                pos++; // Move past the end
+            } else {
+                // For PRIMITIVE and STRING, just move to the next token
+                pos++;
+            }
+
+            currentIndex++;
+        }
+
+        return 0; // Index out of bounds
     }
+
     /// @notice Converts a string representation of a number to uint256
     /// @dev Only processes positive integers
     /// @param str String containing the number to convert
