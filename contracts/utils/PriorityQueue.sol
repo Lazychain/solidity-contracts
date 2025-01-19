@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
+/// @title PriorityQueue - A max heap implementation of a priority queue for addresses
+/// @notice This library implements a max-priority queue where elements (addresses) are
+///         ordered by their associated priority values
+/// @dev Uses a binary heap stored in an array to maintain the queue efficiently
 library PriorityQueue {
-    error QueueIsEmpty();
+    error PriorityQueue__QueueIsEmpty();
 
     struct Entry {
         uint256 priority;
@@ -13,32 +17,52 @@ library PriorityQueue {
         Entry[] heap;
     }
 
+    /// @notice Inserts a new address into the queue with the specified priority
+    /// @dev Time complexity: O(log n) where n is the size of the queue
+    /// @param self The queue to insert into
+    /// @param value The address to insert
+    /// @param priority The priority value associated with the address
     function insert(Queue storage self, address value, uint256 priority) internal {
         Entry memory newEntry = Entry(priority, value);
         self.heap.push(newEntry);
         _bubbleUp(self, self.heap.length - 1);
     }
 
+    /// @notice Removes and returns the address with the highest priority
+    /// @dev Time complexity: O(log n) where n is the size of the queue
+    /// @param self The queue to extract from
+    /// @return The address with the highest priority
+    /// @custom:throws QueueIsEmpty if the queue is empty
     function extractMax(Queue storage self) internal returns (address) {
-        if (self.heap.length > 0) revert QueueIsEmpty();
-
-        if (self.heap.length == 1) {
-            return self.heap[0].value;
-        }
+        if (self.heap.length == 0) revert PriorityQueue__QueueIsEmpty();
 
         address maxValue = self.heap[0].value;
-        self.heap[0] = self.heap[self.heap.length - 1];
-        self.heap.pop();
-        _bubbleDown(self, 0);
+
+        if (self.heap.length > 1) {
+            self.heap[0] = self.heap[self.heap.length - 1];
+            self.heap.pop();
+            _bubbleDown(self, 0);
+        } else {
+            self.heap.pop();
+        }
 
         return maxValue;
     }
 
+    /// @notice Returns the address with the highest priority without removing it
+    /// @dev Time complexity: O(1)
+    /// @param self The queue to peek into
+    /// @return The address with the highest priority
+    /// @custom:throws QueueIsEmpty if the queue is empty
     function peek(Queue storage self) internal view returns (address) {
-        if (self.heap.length > 0) revert QueueIsEmpty();
+        if (self.heap.length == 0) revert PriorityQueue__QueueIsEmpty();
         return self.heap[0].value;
     }
 
+    /// @notice Returns the current size of the queue
+    /// @dev Time complexity: O(1)
+    /// @param self The queue to get the size of
+    /// @return The number of elements in the queue
     function size(Queue storage self) internal view returns (uint256) {
         return self.heap.length;
     }
@@ -54,6 +78,10 @@ library PriorityQueue {
         }
     }
 
+    /// @notice Moves an entry down the heap to maintain the heap property
+    /// @dev Internal function used by extractMax
+    /// @param self The queue being modified
+    /// @param index The index of the entry to move down
     function _bubbleDown(Queue storage self, uint256 index) private {
         uint256 maxIndex;
         uint256 heapLength = self.heap.length;
@@ -80,6 +108,11 @@ library PriorityQueue {
         }
     }
 
+    /// @notice Swaps two entries in the heap
+    /// @dev Internal function used by _bubbleUp and _bubbleDown
+    /// @param self The queue being modified
+    /// @param i The index of the first entry to swap
+    /// @param j The index of the second entry to swap
     function _swap(Queue storage self, uint256 i, uint256 j) private {
         Entry memory temp = self.heap[i];
         self.heap[i] = self.heap[j];
@@ -87,17 +120,15 @@ library PriorityQueue {
     }
 
     /// @notice Creates a memory copy of the priority queue
-    /// @dev Efficiently copies the entire heap without modifying the original
+    /// @dev Time complexity: O(n) where n is the size of the queue
     /// @param self The storage queue to copy
     /// @return A memory-based copy of the queue
     function copy(Queue storage self) internal view returns (Queue memory) {
         Queue memory copiedQueue;
         uint256 length = self.heap.length;
 
-        // Preallocate the heap array with the same length
         copiedQueue.heap = new Entry[](length);
 
-        // Copy each entry directly
         for (uint256 i = 0; i < length; i++) {
             copiedQueue.heap[i] = Entry({ priority: self.heap[i].priority, value: self.heap[i].value });
         }
@@ -105,47 +136,32 @@ library PriorityQueue {
         return copiedQueue;
     }
 
-    /// @notice Creates a memory copy of the priority queue using assembly (gas-optimized)
-    /// @dev Uses inline assembly for more gas-efficient memory copying
+    /// @notice Creates a memory copy of the priority queue using assembly for gas optimization
+    /// @dev Uses inline assembly for more efficient memory operations
+    /// @dev Time complexity: O(n) where n is the size of the queue
     /// @param self The storage queue to copy
     /// @return A memory-based copy of the queue
-    // solhint-disable no-inline-assembly
+    // solhint-disable-next-line no-inline-assembly
     function assemblyCopy(Queue storage self) internal view returns (Queue memory) {
         Queue memory copiedQueue;
-
-        // Preallocate the heap array
         copiedQueue.heap = new Entry[](self.heap.length);
 
         assembly {
-            // Get the storage slot of the original heap
             let heapSlot := self.slot
-
-            // Get the length of the heap
-            let heapLength := sload(add(heapSlot, 0))
-
-            // Get the memory location of the copied heap
+            let heapLength := sload(heapSlot)
             let destPtr := add(copiedQueue, 0x20)
 
-            // Store the length first
             mstore(destPtr, heapLength)
 
-            // Copy each entry
             for {
                 let i := 0
             } lt(i, heapLength) {
                 i := add(i, 1)
             } {
-                // Calculate the storage slot for this entry
                 let entrySlot := add(heapSlot, add(1, mul(i, 2)))
-
-                // Load priority and value
                 let priority := sload(entrySlot)
                 let value := sload(add(entrySlot, 1))
-
-                // Calculate memory location to store the entry
                 let entryPtr := add(add(destPtr, 0x20), mul(i, 0x40))
-
-                // Store priority and value
                 mstore(entryPtr, priority)
                 mstore(add(entryPtr, 0x20), value)
             }
