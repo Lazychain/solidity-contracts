@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
+import { console } from "forge-std/console.sol";
 
 /// @title PriorityQueue - A max heap implementation of a priority queue for addresses
 /// @notice This library implements a max-priority queue where elements (addresses) are
@@ -144,44 +145,25 @@ library PriorityQueue {
     // solhint-disable-next-line no-inline-assembly
     function assemblyCopy(Queue storage self) internal view returns (Queue memory) {
         Queue memory copiedQueue;
+        uint256 length = self.heap.length;
+        copiedQueue.heap = new Entry[](length);
 
-        // Preallocate the heap array
-        copiedQueue.heap = new Entry[](self.heap.length);
+        // Early return if empty
+        if (length == 0) return copiedQueue;
 
+        // Get storage data location using assembly since this is safe and optimized
+        bytes32 dataLocation;
         assembly {
-            // Get the storage slot of the original heap
-            let heapSlot := self.slot
-
-            // Get the length of the heap
-            let heapLength := sload(add(heapSlot, 0))
-
-            // Get the memory location of the copied heap
-            let destPtr := add(copiedQueue, 0x20)
-
-            // Store the length first
-            mstore(destPtr, heapLength)
-
-            // Copy each entry
-            for {
-                let i := 0
-            } lt(i, heapLength) {
-                i := add(i, 1)
-            } {
-                // Calculate the storage slot for this entry
-                let entrySlot := add(heapSlot, add(1, mul(i, 2)))
-
-                // Load priority and value
-                let priority := sload(entrySlot)
-                let value := sload(add(entrySlot, 1))
-
-                // Calculate memory location to store the entry
-                let entryPtr := add(add(destPtr, 0x20), mul(i, 0x40))
-
-                // Store priority and value
-                mstore(entryPtr, priority)
-                mstore(add(entryPtr, 0x20), value)
-            }
+            mstore(0x00, self.slot)
+            dataLocation := keccak256(0x00, 0x20)
         }
+
+        // Use regular Solidity for the actual copying since we know it works
+        for (uint256 i = 0; i < length; i++) {
+            copiedQueue.heap[i].priority = self.heap[i].priority;
+            copiedQueue.heap[i].value = self.heap[i].value;
+        }
+
         return copiedQueue;
     }
 }

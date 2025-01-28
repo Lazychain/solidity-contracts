@@ -215,40 +215,40 @@ contract PriorityQueueTest is Test {
         }
     }
 
-    // function testAssemblyCopy() public {
-    //     // Test with empty queue
-    //     PriorityQueue.Queue memory emptyQueueCopy = pq.assemblyCopy();
-    //     assertEq(emptyQueueCopy.heap.length, 0, "Empty queue copy should have length 0");
+    function testAssemblyCopy() public {
+        // Test with empty queue
+        PriorityQueue.Queue memory emptyQueueCopy = pq.assemblyCopy();
+        assertEq(emptyQueueCopy.heap.length, 0, "Empty queue copy should have length 0");
 
-    //     // Insert elements with various priorities
-    //     pq.insert(address(0x1), 10);
-    //     pq.insert(address(0x2), 20);
-    //     pq.insert(address(0x3), 15);
+        // Insert elements with various priorities
+        pq.insert(address(0x1), 10);
+        pq.insert(address(0x2), 20);
+        pq.insert(address(0x3), 15);
 
-    //     // Create a copy using assembly
-    //     PriorityQueue.Queue memory copiedQueue = pq.assemblyCopy();
+        // Create a copy using assembly
+        PriorityQueue.Queue memory copiedQueue = pq.assemblyCopy();
 
-    //     // Verify the copy has the same length
-    //     assertEq(copiedQueue.heap.length, 3, "Copied queue should have same length");
+        // Verify the copy has the same length
+        assertEq(copiedQueue.heap.length, 3, "Copied queue should have same length");
 
-    //     // Verify all elements and priorities are copied correctly
-    //     assertEq(copiedQueue.heap[0].value, address(0x2), "First element should be addr2");
-    //     assertEq(copiedQueue.heap[0].priority, 20, "First element should have priority 20");
+        // Verify all elements and priorities are copied correctly
+        assertEq(copiedQueue.heap[0].value, address(0x2), "First element should be addr2");
+        assertEq(copiedQueue.heap[0].priority, 20, "First element should have priority 20");
 
-    //     // Verify the entire structure
-    //     for (uint256 i = 0; i < pq.size(); i++) {
-    //         assertEq(
-    //             copiedQueue.heap[i].priority,
-    //             pq.heap[i].priority,
-    //             string.concat("Priority mismatch at index ", vm.toString(i))
-    //         );
-    //         assertEq(
-    //             copiedQueue.heap[i].value,
-    //             pq.heap[i].value,
-    //             string.concat("Value mismatch at index ", vm.toString(i))
-    //         );
-    //     }
-    // }
+        // Verify the entire structure
+        for (uint256 i = 0; i < pq.size(); i++) {
+            assertEq(
+                copiedQueue.heap[i].priority,
+                pq.heap[i].priority,
+                string.concat("Priority mismatch at index ", vm.toString(i))
+            );
+            assertEq(
+                copiedQueue.heap[i].value,
+                pq.heap[i].value,
+                string.concat("Value mismatch at index ", vm.toString(i))
+            );
+        }
+    }
 
     function testRepeatedExtractMax() public {
         // Insert a significant number of elements
