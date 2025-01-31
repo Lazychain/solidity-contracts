@@ -1,128 +1,126 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "hardhat/console.sol";
 import { Test } from "forge-std/Test.sol";
 import { StdCheats } from "forge-std/StdCheats.sol";
-import { NFTLottery } from "../../../contracts/apps/lottery.sol";
-import { NFTLotteryFactory } from "../../../contracts/apps/factory/lotteryFactory.sol";
 import { Lazy721 } from "../../../contracts/apps/lazy721.sol";
 import { Lazy1155 } from "../../../contracts/apps/lazy1155.sol";
-import { IFairyringContract } from "../../../lib/FairyringContract/src/IFairyringContract.sol";
+import { NFTLottery } from "../../../contracts/apps/lottery.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import "hardhat/console.sol";
+import { IFairyringContract } from "../../../lib/FairyringContract/src/IFairyringContract.sol";
+import { NFTLotteryFactory, NFTLotteryProxy } from "../../../contracts/apps/factory/lotteryFactory.sol";
 
-contract LotteryFactoryTest is StdCheats, Test, ERC1155Holder {
+contract MockNonStandardNFT {
+    function transferFrom(address, address, uint256) external pure {}
+}
+
+contract NFTLotteryFactoryTest is StdCheats, Test, ERC1155Holder {
     NFTLotteryFactory private _factory;
-    NFTLottery private _lottery1155;
-    NFTLottery private _lottery721;
-
     Lazy721 private _nft721;
     Lazy1155 private _nft1155;
-
+    MockNonStandardNFT private _nonStandardNFT;
     IFairyringContract private _fairyringContract;
-    uint256 private _fee = 1 ether;
-    address private _fundedUser;
-    address private _noFundedUser;
 
-    // Needed so the test contract itself can receive ether
-    // when withdrawing
-    receive() external payable {}
-
-    // Events
-    event RewardWithdrawn(address by, uint256 amount);
-    event CampaignStatusChanged(bool status);
+    uint256 private constant _FEE = 1 ether;
 
     function setUp() public {
-        uint256 tokenId = 0;
-        uint256 amount = 1;
-        // Setup
-        _fundedUser = makeAddr("funded_user");
-        deal(address(_fundedUser), 100 ether);
-        _noFundedUser = makeAddr("no_funded_user");
-
-        // tokenCap = 1
-        _nft1155 = new Lazy1155(amount, "ipfs://hash/{id}.json"); // we want to test mint, so =0
-        _nft721 = new Lazy721("Lazy NFT", "LAZY", amount, "ipfs://lazyhash/");
-
-        // Random mock
+        _factory = new NFTLotteryFactory();
         _fairyringContract = IFairyringContract(address(0));
 
-        emit log_string("Start.");
-        // NFTLotteryFactory owned all NFTLotteries deployed by it.
-        _factory = new NFTLotteryFactory();
-
-        console.log("Setup Lottery NFT 1155");
-        // Setup Lottery NFT 1155
-        _lottery1155 = _factory.createLottery(
-            address(_nft1155),
-            _fee,
-            address(_fairyringContract)
-        );
-
-        console.log("minting");
-        // LotteryFactoryTest owns _nft1155
-        _nft1155.mint(address(this), tokenId, amount, "0x");
-        // Set approval for nft lottery instance
-        _nft1155.setApprovalForAll(address(_lottery1155), true);
-        assertEq(true, _nft1155.isApprovedForAll(address(this), address(_lottery1155)));
-        // Transfer all NFTs ownership to lottery instance
-        _nft1155.safeTransferFrom(address(this), address(_lottery1155), tokenId, amount, "");
-        assertEq(_nft1155.balanceOf(address(_lottery1155), tokenId), _nft1155.totalSupply());
-
-        emit log_string("1155 OK.");
-        // TODO: For now, Lottery only support ERC1155 since requeriments changed last week.
-        // _lottery721 = _factory.createLottery(
-        //     address(_nft721),
-        //     _fee,
-        //     address(_fairyringContract),
-        //     address(_fairyringContract)
-        // );
-
-        // // LotteryFactoryTest owns _nft721
-        // _nft721.safeMint(address(_lottery721));
-        // assertEq(_nft721.balanceOf(address(_lottery721)), _nft721.totalSupply());
-        // emit log_string("721 OK.");
+        // Deploy standard NFT contracts
+        _nft721 = new Lazy721("Lazy721", "LAZY721", 1, "ipfs://lazyhash/");
+        _nft1155 = new Lazy1155(1, "ipfs://hash/{id}.json");
+        _nonStandardNFT = new MockNonStandardNFT();
     }
 
-    /// forge-config: default.fuzz.show-logs = true
-    /// forge-config: default.invariant.fail-on-revert = true
-    /// forge-config: default.fuzz.runs = 300
-    function testFuzz_Draw_Always_Win_lottery_1155(uint8 guess) public {
-        vm.assume(guess >= 0);
-        vm.assume(guess < 100);
-        uint256 preBalance = address(this).balance;
+    // Test creating a lottery with ERC721
+    function test_CreateLottery_ERC721() public {
+        NFTLottery lottery = _factory.createLottery(address(_nft721), _FEE, address(_fairyringContract));
 
-        // // Given a started lottery campaign
-        // vm.expectEmit(true, true, false, true);
-        // emit CampaignStatusChanged(true);
-        // _lottery1155.setCampaign(true);
+        assertEq(
+            uint256(_factory.lotteryTypes(address(lottery))),
+            uint256(NFTLotteryFactory.NFTStandards.ERC721),
+            "Lottery type should be ERC721"
+        );
+    }
 
-        // // and a well funded user
-        // vm.startPrank(address(_fundedUser));
+    // Test creating a lottery with ERC1155
+    function test_CreateLottery_ERC1155() public {
+        NFTLottery lottery = _factory.createLottery(address(_nft1155), _FEE, address(_fairyringContract));
 
-        // // and a mocked randomness function
-        // // to return always guess
+        assertEq(
+            uint256(_factory.lotteryTypes(address(lottery))),
+            uint256(NFTLotteryFactory.NFTStandards.ERC1155),
+            "Lottery type should be ERC1155"
+        );
+    }
 
-        // vm.mockCall(
-        //     address(_fairyringContract),
-        //     abi.encodeWithSelector(IFairyringContract.latestRandomness.selector),
-        //     abi.encode(bytes32(0), uint256(guess))
-        // );
+    // Test creating a lottery with unsupported NFT standard
+    function test_CreateLottery_UnsupportedNFTStandards() public {
+        vm.expectRevert(NFTLotteryFactory.NFTLotteryFactory__UnsupportedNFTStandards.selector);
+        _factory.createLottery(address(_nonStandardNFT), _FEE, address(_fairyringContract));
+    }
 
-        // // and calling draw()
-        // _lottery1155.draw{ value: _fee }(guess);
-        // vm.stopPrank();
+    // Test LotteryCreated event is emitted
+    function test_CreateLottery_EmitsEvent() public {
+        vm.expectEmit(true, true, false, false);
+        emit NFTLotteryFactory.LotteryCreated(address(0), NFTLotteryFactory.NFTStandards.ERC721);
 
-        // // When an owner withdraw
-        // vm.startPrank(address(this));
-        // vm.expectEmit(true, true, false, true);
-        // emit RewardWithdrawn(address(this), _fee);
+        _factory.createLottery(address(_nft721), _FEE, address(_fairyringContract));
+    }
 
-        // _lottery1155.withdraw();
-        // vm.stopPrank();
+    // NFTLotteryProxy tests
+    function test_NFTLotteryProxy_Deployment() public {
+        // Direct deployment of proxy to test its constructor and functions
+        NFTLotteryProxy proxy = new NFTLotteryProxy(address(_nft1155), _FEE, address(_fairyringContract));
 
-        // // and owner balance should increase by amount
-        // uint256 postBalance = address(this).balance;
-        // assertEq(preBalance + _fee, postBalance);
+        NFTLottery lottery = proxy.getLottery();
+        assertTrue(address(lottery) != address(0), "Lottery should be deployed");
+    }
+
+    // Test fallback mechanism of NFTLotteryProxy
+    function test_NFTLotteryProxy_Fallback() public {
+        NFTLotteryProxy proxy = new NFTLotteryProxy(address(_nft1155), _FEE, address(_fairyringContract));
+
+        // Simulate a call to the implementation contract via proxy
+        (bool success, ) = address(proxy).call(abi.encodeWithSignature("owner()"));
+        assertTrue(success, "Fallback should delegate call successfully");
+    }
+
+    // Test receive function
+    function test_NFTLotteryProxy_ReceiveEther() public {
+        NFTLotteryProxy proxy = new NFTLotteryProxy(address(_nft1155), _FEE, address(_fairyringContract));
+
+        // Send some ether to the proxy
+        vm.deal(address(this), 10 ether);
+        (bool success, ) = address(proxy).call{ value: 1 ether }("");
+        assertTrue(success, "Should be able to receive ether");
+    }
+
+    // Edge case: Zero address handling
+    function test_CreateLottery_ZeroAddressHandling() public {
+        vm.expectRevert(); // Expect a revert, though the exact error depends on implementation
+        _factory.createLottery(address(0), _FEE, address(_fairyringContract));
+    }
+
+    // Fuzz testing for fee variation
+    function testFuzz_CreateLottery_DifferentFees(uint256 fee) public {
+        vm.assume(fee > 0 && fee < type(uint256).max);
+
+        NFTLottery lottery = _factory.createLottery(address(_nft721), fee, address(_fairyringContract));
+
+        assertTrue(address(lottery) != address(0), "Lottery should be created with varying fees");
+    }
+
+    // Ensure unique lottery creation for different contracts
+    function test_CreateLottery_UniqueAddresses() public {
+        NFTLottery lottery1 = _factory.createLottery(address(_nft721), _FEE, address(_fairyringContract));
+
+        NFTLottery lottery2 = _factory.createLottery(address(_nft1155), _FEE, address(_fairyringContract));
+
+        assertTrue(address(lottery1) != address(lottery2), "Lotteries should have unique addresses");
     }
 }
